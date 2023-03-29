@@ -7,6 +7,7 @@
 #include "AnalyticalModels.h"
 #include "FileIO.h"
 #include "AtmosControl.h"
+#include "Network.h"
 #include "Grid2d.h"
 #include "Grid3d.h"
 #include "ModelWater2dDiffBrute.h"
@@ -30,6 +31,7 @@ private:
     Settings settings;
     FileIO fileIO;
     AtmosControl atmosControl;
+    Network network;
     Grid2d grid2d;
     Grid3d grid3d;
     ModelWater2dDiffBrute modelWater2dDiffBrute;
