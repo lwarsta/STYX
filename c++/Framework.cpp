@@ -388,8 +388,8 @@ int Framework::run()
             }
 
             double waterDepthOld = cells_water_2d->at(i).getWaterDepth();
-            cells_water_2d->at(i).setWaterDepth(waterDepthOld + precip);
-            precipVolCum += precip * geom2d->getArea();
+            cells_water_2d->at(i).setWaterDepth(waterDepthOld + precip * time_step);
+            precipVolCum += precip * time_step * geom2d->getArea();
         }
 
         // Remove water from overland domain that enters stormwater network.

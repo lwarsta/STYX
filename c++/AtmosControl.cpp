@@ -3,7 +3,7 @@
 AtmosControl::AtmosControl()
 {
     time = 0.0;
-    precipFact = 0.5;
+    precipFact = 1.0;
     petFact = 1.0;
 }
 
