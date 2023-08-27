@@ -6,6 +6,7 @@ class CellGeom2d : public CellGeomBase
 {
 protected:
 	double area;
+	double averageSlope;
 	std::vector<int> neighIndices;
 	std::vector<CellGeom2d*> neighPointers;
 	std::vector<std::vector<int> > sideVertIndices;
@@ -21,6 +22,8 @@ public:
 	void computeSideCentrePoints();
 	void computeDistancesBetweenCells();
 	void computeSideLengths();
+	void computeAverageSlope();
+	double getAverageSlope() { return averageSlope; }
 	void computeArea();
 	double getArea(){return area;}
 	std::vector< std::vector<int> > getSideVertIndices() { 

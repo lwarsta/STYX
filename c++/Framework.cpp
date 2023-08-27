@@ -42,6 +42,38 @@ int Framework::initialize(std::string pathToSettings)
     omp_set_dynamic(0);
     omp_set_num_threads(settings.get_int("num_of_threads"));
     
+    // Load and tokenize network junction geometry.
+    std::cout << "Loading network junction geometry:\n";
+    std::vector < std::vector<std::string> > tokens_junc;
+    tokens_junc = fileIO.load_and_tokenize_file(
+        settings.get_str("network_junc_file_path_in"), ' ');
+
+    if (tokens_junc.size() == 0)
+    {
+        std::cout << "-> Junction geometry file was not found or empty\n";
+        std::string path = settings.get_str("network_junc_file_path_in");
+        std::cout << path.c_str() << "\n";
+        return 1;
+    }
+
+    // Load and tokenize network link geometry.
+    std::cout << "Loading network link geometry:\n";
+    std::vector < std::vector<std::string> > tokens_link;
+    tokens_link = fileIO.load_and_tokenize_file(
+        settings.get_str("network_link_file_path_in"), ' ');
+
+    if (tokens_link.size() == 0)
+    {
+        std::cout << "-> Link geometry file was not found or empty\n";
+        std::string path = settings.get_str("network_link_file_path_in");
+        std::cout << path.c_str() << "\n";
+        return 1;
+    }
+
+    // Build the network.
+    std::cout << "Initializing network geometry:\n";
+    network.build_network(tokens_junc, tokens_link);
+
     // Load and tokenize data and build the 2d mesh.
     std::cout << "Initializing 2d geometry cells:\n";
     std::vector < std::vector<std::string> > tokens2d;
@@ -51,6 +83,8 @@ int Framework::initialize(std::string pathToSettings)
     if (tokens2d.size() == 0)
     {
         std::cout << "-> 2d geometry file was not found or empty\n";
+        std::string path = settings.get_str("mesh_2d_file_path_in");
+        std::cout << path.c_str() << "\n";
         return 1;
     }
 
@@ -69,6 +103,12 @@ int Framework::initialize(std::string pathToSettings)
     }
 
     grid3d.build_grid(tokens3d);
+
+    // Load network materials, initial conditions and boundary conditions.
+    // NOT IMPLEMENTED YET!
+    std::vector<std::vector<std::string>> materials_net;
+    std::vector<std::vector<std::string>> bound_cond_net;
+    std::vector<std::vector<std::string>> init_cond_net;
 
     // Load 2d materials, initial conditions and boundary conditions.
     std::cout << "Loading 2d materials, initial conditions and" 
@@ -141,6 +181,12 @@ int Framework::initialize(std::string pathToSettings)
     grid2d.create_water_cells();
     grid2d.init_water_cells(settings, materials_2d, bound_cond_2d, 
         init_cond_2d);
+
+    // Create and initialize the water network.
+    std::cout << "Creating and initializing the water network:\n";
+    network.create_water_network_items();
+    network.init_water_network(settings, materials_net, bound_cond_net,
+                               init_cond_net);
     
     // Create and initialize 3d water cells.
     std::cout << "Creating and initializing 3d water cells:\n";
@@ -391,7 +437,7 @@ int Framework::run()
             cells_water_2d->at(i).setWaterDepth(waterDepthOld + precip * time_step);
             precipVolCum += precip * time_step * geom2d->getArea();
         }
-
+        /*
         // Remove water from overland domain that enters stormwater network.
         for (size_t i = 0; i < cells_water_2d->size(); i++)
         {
@@ -410,13 +456,14 @@ int Framework::run()
                 }
             }
         }
-
+        */
+        /*
         // Add water to overland domain discharging from stormwater network.
         for (size_t i = 0; i < cells_water_2d->size(); i++)
         {
             cells_water_2d->at(i).removeWatVolFromStorm(sim_time);
         }
-
+        */
         // Remove water from overland domain that discharges into sinks.
         for (size_t i = 0; i < cells_water_2d->size(); i++)
         {
@@ -455,6 +502,22 @@ int Framework::run()
                     cells_solute_2d->at(ind).getDeposDryRate() * 
                     area_fact * geom2d->getArea() + massInPrecip);
             }
+        }
+
+        // Run brute force network flow model with 
+        // diffusion wave simplification.
+        if (settings.get_int("wat_flow_net_solver") == 1)
+        {
+            modelWaterNetDiffBrute.configure(
+                settings.get_int("iter_stop_wat_net"),
+                settings.get_double("iter_cut_thresh_wat_net"),
+                settings.get_double("implicity_wat_net"),
+                time_step,
+                settings.get_double("bis_iter_cut_thresh_wat_net"),
+                settings.get_int("bis_iter_stop_wat_net"),
+                settings.get_double("bis_iter_cut_left_wat_net"),
+                settings.get_double("bis_iter_cut_right_wat_net"));
+            modelWaterNetDiffBrute.run(grid2d, network);
         }
 
         // Run brute force 2d overland flow model with 

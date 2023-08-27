@@ -6,4 +6,5 @@ CellBase::CellBase()
     material = 0;
 	initCondInd = 0;
 	boundCondInd = 0;
+	gridConnect = -1;
 }

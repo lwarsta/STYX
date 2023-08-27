@@ -36,7 +36,7 @@ void ModelWater2dDiffBrute::preprocess(Grid2d &grid2d, Grid3d &grid3d)
 }
 
 double ModelWater2dDiffBrute::calcResidual(CellWater2d& water, double waterDepth)
-{
+{	
 	// Calculate water volume in the cell.
 	CellGeom2d* geom = water.getGeom();
 	double waterVolume = (waterDepth - water.getWaterDepthOld()) * geom->getArea();
@@ -169,7 +169,7 @@ double ModelWater2dDiffBrute::bisection(CellWater2d& water, double left, double 
 {
 	int iterCountBis = 0;
 
-	while (fabs(right - left) > 2.0 * iterCutThresh && iterCountBis < iterStopBis) // epsilon -> iterCutThresh
+	while (fabs(right - left) > 2.0 * iterThreshBis && iterCountBis < iterStopBis) // iterCutThresh -> iterThreshBis
 	{
 		// Calculate midpoint of domain.
 		double midpoint = (right + left) * 0.5;

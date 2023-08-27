@@ -1,10 +1,11 @@
-#ifndef _MODELNETWORKWATERDIFFBRUTE_H
-#define _MODELNETWORKWATERDIFFBRUTE_H
+#ifndef _MODELWATERNETDIFFBRUTE_H
+#define _MODELWATERNETDIFFBRUTE_H
 #include <omp.h>
+#include "Algorithms.h"
 #include "Grid2d.h"
 #include "Network.h"
 
-class ModelNetworkWaterDiffBrute
+class ModelWaterNetDiffBrute
 {
 public:
     void configure(int iter_stop_new, double iter_cut_thresh_new, double implicity_new, double time_step_new, 

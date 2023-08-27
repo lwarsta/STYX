@@ -197,6 +197,7 @@ void Grid2d::build_grid(std::vector < std::vector<std::string> > &tokens)
         cells_geom.at(i).assignSideVertIndices();
         cells_geom.at(i).computeSideCentrePoints();
         cells_geom.at(i).computeSideLengths();
+        cells_geom.at(i).computeAverageSlope();
         cells_geom.at(i).computeArea();
     }
 
@@ -425,7 +426,7 @@ std::string Grid2d::parse_unstruct_vtk_mesh()
     for (size_t i = 0; i < vertices.size(); i++) {
         ss << vertices.at(i).x << " " << vertices.at(i).y << " " << vertices.at(i).z << std::endl;
     }
-    ss << "CELLS" << " " << cells_geom.size() << " " << 5 * cells_geom.size() << std::endl;
+    ss << "CELLS" << " " << cells_geom.size() << " " << 4 * cells_geom.size() << std::endl; // 5
     for (size_t i = 0; i < cells_geom.size(); i++) {
         std::vector<int> vertIndices = cells_geom.at(i).getVertIndices();
         ss << vertIndices.size();

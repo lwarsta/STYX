@@ -10,6 +10,7 @@ protected:
 	int material;
 	int initCondInd;
 	int boundCondInd;
+	int gridConnect;
 public:
     CellBase();
 	int getId() {return id;}
@@ -20,6 +21,8 @@ public:
 	void setInitCondInd(int initCondIndNew) {initCondInd = initCondIndNew;}
 	int getBoundCondInd() {return boundCondInd; }
 	void setBoundCondInd(int boundCondIndNew) {boundCondInd = boundCondIndNew;}
+	void setGridConnection(int gridConnectNew) { gridConnect = gridConnectNew; }
+	int getGridConnection() { return gridConnect; }
 };
 
 #endif

@@ -1,22 +1,19 @@
 #ifndef _LINKGEOM_H
 #define _LINKGEOM_H
+#include "Algorithms.h"
 #include "Vertex.h"
-#include "LinkJuncBase.h"
+#include "LinkJuncGeomBase.h"
 
-class LinkGeom : public LinkJuncBase
+class LinkGeom : public LinkJuncGeomBase
 {
 protected:
 	double diameter;
 	double area;
-	// double length; // ??
-	double roughness;
-	int conn_ind[2]; // -1 = not connected
-	int conn_type[2]; // 0 = junction, 1 == cell
-	int conn_elev[2];
+	double length;
 public:
-	LinkGeom(int id_new, double diameter_new, double roughness_new,
-		     int conn_ind_00, int conn_ind_01, int conn_type_00,
-		     int conn_type_01, double conn_elev_00, double conn_elev_01);
+	double get_diameter() { return diameter; }
+	LinkGeom(int id_new, char geom_type_new, std::vector<int> vert_indices_new,
+		     std::vector<Vertex*> vert_pointers_new);
 };
 
 #endif

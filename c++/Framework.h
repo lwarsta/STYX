@@ -10,6 +10,7 @@
 #include "Network.h"
 #include "Grid2d.h"
 #include "Grid3d.h"
+#include "ModelWaterNetDiffBrute.h"
 #include "ModelWater2dDiffBrute.h"
 #include "ModelWater3dBrute.h"
 #include "ModelWater3dTri.h"
@@ -34,6 +35,7 @@ private:
     Network network;
     Grid2d grid2d;
     Grid3d grid3d;
+    ModelWaterNetDiffBrute modelWaterNetDiffBrute;
     ModelWater2dDiffBrute modelWater2dDiffBrute;
     ModelWater3dBrute modelWater3dBrute;
     ModelWater3dTri modelWater3dTri;

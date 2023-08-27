@@ -4,7 +4,6 @@ CellGeomBase::CellGeomBase()
 {
 	id = -1;
 	geomType = -1;
-	gridConnect = -1;
 }
 
 CellGeomBase::CellGeomBase(int idNew, char geomTypeNew, 

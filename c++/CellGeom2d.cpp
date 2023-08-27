@@ -5,6 +5,8 @@ CellGeom2d::CellGeom2d(int idNew, char geomTypeNew,
 	std::vector<int> vertIndicesNew, std::vector<Vertex*> vertPointersNew)
 	: CellGeomBase(idNew, geomTypeNew, vertIndicesNew, vertPointersNew)
 {
+	area = 0.0;
+	averageSlope = 0.0;
 	// WHY ARE THESE COMMENTED OUT?
 	//assignSideVertIndices();
 	//computeSideCentrePoints();
@@ -117,4 +119,39 @@ void CellGeom2d::computeArea()
 		crossProduct = computeVectorCrossProduct(vector1, vector2);
 		area += 0.5 * computeVectorLength(crossProduct);
 	}
+}
+
+void CellGeom2d::computeAverageSlope()
+{
+	averageSlope = 0.0;
+
+	for (size_t i = 0; i < vertPointers.size(); i++) {
+		size_t pnt_ind_0, pnt_ind_1;
+
+		if (i < vertPointers.size() - 1) {
+			pnt_ind_0 = i;
+			pnt_ind_1 = i + 1;
+		}
+		else {
+			pnt_ind_0 = i;
+			pnt_ind_1 = 0;
+		}
+
+		// Compute slope between corner points.
+		Vertex pnt_0 = *vertPointers.at(pnt_ind_0);
+		double elev_0 = pnt_0.z;
+		pnt_0.z = 0.0;
+		Vertex pnt_1 = *vertPointers.at(pnt_ind_1);
+		double elev_1 = pnt_1.z;
+		pnt_1.z = 0.0;
+		Vertex side_vec = createVector(pnt_0, pnt_1);
+		double side_length = computeVectorLength(side_vec);
+		
+		if (side_length > 0.0) {
+			averageSlope += (elev_1 - elev_0) / side_length * 
+				            (elev_1 - elev_0) / side_length;
+		}
+	}
+
+	averageSlope = sqrt(averageSlope);
 }

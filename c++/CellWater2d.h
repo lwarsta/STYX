@@ -44,10 +44,10 @@ public:
     void setDistToOutlet(int distToOutletNew) { 
         distToOutlet = distToOutletNew; }
     double getDistToOutlet() { return distToOutlet; }
-    double compFlowToManhole(double timeStep);
-    void addWatVolToStorm(double watVolStorm, double distToOutlet, 
-        double simTime);
-    void removeWatVolFromStorm(double simTime);
+    //double compFlowToManhole(double timeStep);
+    //void addWatVolToStorm(double watVolStorm, double distToOutlet, 
+    //    double simTime);
+    //void removeWatVolFromStorm(double simTime);
     void setAvgDisch(double avgDischNew) { avgDisch = avgDischNew; }
     double getAvgDisch() { return avgDisch; }
     void setSinkIndex(int sinkIndexNew) { sinkIndex = sinkIndexNew; }

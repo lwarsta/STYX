@@ -13,12 +13,13 @@ from functools import reduce
 import datetime
 import math
 import shapely
-from shapely.geometry import Point, Polygon, shape 
+from shapely.geometry import Point, Polygon, shape, mapping 
 import fiona
 from rtree import index
 import numpy as np
 import gmsh
 import time
+from copy import copy
 
 class Vertex:
     def __init__(self, id, x, y, z):
@@ -40,10 +41,10 @@ class Cell:
         self.grid_connection = grid_connection
         self.mask = 0
         self.material = 0
-        self.soiltype = 0
         self.init_cond = id
-        self.bound_cond = id    
-        self.hydraulic_head = 0.0
+        self.bound_cond = id
+        #self.soiltype = 0        
+        self.hydraulic_head = 0.0 # TEMPORARY ?
         self.junction_and_outlet = -1 # TEMPORARY
 
 def avg(lst):
@@ -105,6 +106,25 @@ def pick_raster_pixel_values(vertices, sources):
             pixel_values.append(0)
     return pixel_values
 
+def find_closest_junc(thresh_dist, vert_end, verts, cells):
+    """
+    """
+    dist_sq_min = sys.float_info.max
+    cell_id = -1
+    for cell in cells:
+        ind = cell.vert_indices[0]
+        dist_sq = ((verts[ind].x - vert_end.x) * (verts[ind].x - vert_end.x) + 
+                  (verts[ind].y - vert_end.y) * (verts[ind].y - vert_end.y))
+        if dist_sq < dist_sq_min:
+            dist_sq_min = dist_sq
+            cell_id = cell.id
+    # If the minimum distance to a junction is more than the defined
+    # threshold distance, set the cell id to -1 (not found).
+    if dist_sq_min > thresh_dist * thresh_dist:
+        return -1
+    else:
+        return cell_id
+
 def main(argv):
     """
     """
@@ -119,6 +139,9 @@ def main(argv):
     nz = cfg.getint('input', 'nz')
     lz = cfg.getfloat('input', 'lz')
     z_distr = json.loads(cfg.get('input', 'z_distr'))
+    layer_depths_soilt = json.loads(cfg.get('input', 'layer_depths_top_soil'))
+    layer_depths_soilb = json.loads(cfg.get('input', 'layer_depths_bot_soil'))
+    bedrock_bottom_elev = cfg.getfloat('input', 'bedrock_bottom_elev')
     path_aoi = cfg.get('input', 'path_aoi')
     path_ditches = cfg.get('input', 'path_ditches')
     path_to_dem_folder = cfg.get('input', 'path_to_dem_folder')
@@ -126,8 +149,10 @@ def main(argv):
     path_to_soiltype_top_folder = cfg.get('input', 'path_to_soiltype_top_folder')
     path_to_soiltype_bottom_folder = cfg.get('input', 'path_to_soiltype_bottom_folder')
     path_to_mask_folder = cfg.get('input', 'path_to_mask_folder')
-    path_to_stormnet_wells = cfg.get('input', 'path_to_stormnet_wells')
-    path_to_sinks = cfg.get('input', 'path_to_sinks')
+    path_to_stormnet_wells = cfg.get('input', 'path_to_stormnet_wells') # CAN BE REMOVED
+    path_to_sinks = cfg.get('input', 'path_to_sinks') # CAN BE REMOVED
+    path_to_net_junctions = cfg.get('input', 'path_to_net_junctions')
+    path_to_net_links = cfg.get('input', 'path_to_net_links')
     # Structured grid.
     nx = cfg.getint('input', 'nx')
     ny = cfg.getint('input', 'ny')
@@ -155,6 +180,14 @@ def main(argv):
     st_result_save_inter = cfg.getint('input', 'st_result_save_inter')
     st_grid_save_start_time = cfg.getint('input', 'st_grid_save_start_time')
     st_grid_save_stop_time = cfg.getint('input', 'st_grid_save_stop_time')
+    st_net_flow_solver = cfg.getint('input', 'st_net_flow_solver')
+    st_net_flow_num_of_iter = cfg.getint('input', 'st_net_flow_num_of_iter')
+    st_net_flow_iter_thresh = cfg.getfloat('input', 'st_net_flow_iter_thresh')
+    st_net_flow_iter_implic = cfg.getfloat('input', 'st_net_flow_iter_implic')
+    st_net_flow_bis_it_thr = cfg.getfloat('input', 'st_net_flow_bis_it_thr')
+    st_net_flow_bis_num_it = cfg.getint('input', 'st_net_flow_bis_num_it')
+    st_net_flow_bis_left = cfg.getfloat('input', 'st_net_flow_bis_left')
+    st_net_flow_bis_right = cfg.getfloat('input', 'st_net_flow_bis_right')    
     st_sur_flow_solver = cfg.getint('input', 'st_sur_flow_solver')
     st_sur_flow_num_of_iter = cfg.getint('input', 'st_sur_flow_num_of_iter')
     st_sur_flow_iter_thresh = cfg.getfloat('input', 'st_sur_flow_iter_thresh')
@@ -198,6 +231,10 @@ def main(argv):
     st_sub_trans_iter_thr = cfg.getfloat('input', 'st_sub_trans_iter_thr')
     st_sub_trans_iter_imp = cfg.getfloat('input', 'st_sub_trans_iter_imp')
     st_sub_trans_mol_diff = cfg.getfloat('input', 'st_sub_trans_mol_diff')
+    
+    st_link_vtk_file = cfg.get('input', 'st_link_vtk_file')
+    st_junction_vtk_file = cfg.get('input', 'st_junction_vtk_file')
+    
     st_surface_vtk_file = cfg.get('input', 'st_surface_vtk_file')
     st_subsurface_vtk_file = cfg.get('input', 'st_subsurface_vtk_file')
     st_subsurface_grid_map_file = cfg.get('input', 'st_subsurface_grid_map_file')
@@ -215,6 +252,8 @@ def main(argv):
     st_phreeqc_db_spec_map_file = cfg.get('input', 'st_phreeqc_db_spec_map_file')
     st_phreeqc_mol_weight_map_file = cfg.get('input', 'st_phreeqc_mol_weight_map_file') # too long
     st_csv_output_file = cfg.get('input', 'st_csv_output_file')
+    st_link_vtk_output = cfg.get('input', 'st_link_vtk_output')
+    st_junction_vtk_output = cfg.get('input', 'st_junction_vtk_output')
     st_surface_vtk_output = cfg.get('input', 'st_surface_vtk_output')
     st_subsurface_vtk_output = cfg.get('input', 'st_subsurface_vtk_output')
     st_path_to_output_folder = cfg.get('output', 'path_to_output_folder')
@@ -267,7 +306,19 @@ def main(argv):
         for feature in src:
             sinks.append(feature)
     
-    #meshing_method = 2 # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    # Load junctions.
+    print("-> Loading junction features.")
+    junctions = []
+    with fiona.open(path_to_net_junctions) as src:
+        for feature in src:
+            junctions.append(feature)
+            
+    # Load links.
+    print("-> Loading link features.")
+    links = []
+    with fiona.open(path_to_net_links) as src:
+        for feature in src:
+            links.append(feature)
     
     # Create a structured mesh.
     if meshing_method == 1:
@@ -287,6 +338,8 @@ def main(argv):
         else:
             for dy in range(0, ny):
                 dy_lst.append(ly / ny)
+        
+        """
         dz_lst = []
         if len(z_distr) == nz and round(sum(z_distr),3) == 1.0:
             for dz_frac in z_distr:
@@ -294,6 +347,7 @@ def main(argv):
         else:
             for dz in range(0, nz):
                 dz_lst.append(lz / nz)
+        """
         
         # Compute grid angle.
         print("-> Computing grid angle.")
@@ -350,6 +404,27 @@ def main(argv):
                 ind += 1;
         
         # Create 3d subsurface vertices.
+        layer_depths = []
+        layer_depths.extend(layer_depths_soilt)
+        layer_depths.extend(layer_depths_soilb)
+        layer_depths.append(0.0)
+        nz = len(layer_depths)
+        dz_cum = 0.0
+        vertices_3d = []
+        vertices_3d.extend(vertices_2d)
+        for layer_depth in layer_depths:
+            dz_cum += layer_depth
+            for vertex_2d in vertices_2d:
+                if layer_depth > 0.0:
+                    z = vertex_2d.z - dz_cum
+                else:
+                    z = bedrock_bottom_elev
+                vertex_3d = Vertex(ind, vertex_2d.x, vertex_2d.y, z)
+                vertices_3d.append(vertex_3d)
+                ind += 1
+        
+        """
+        # Create 3d subsurface vertices.
         print("-> Creating 3d subsurface vertices.")
         vertices_3d = []
         vertices_3d.extend(vertices_2d)
@@ -363,7 +438,7 @@ def main(argv):
                 vertex_3d = Vertex(ind, vertex_2d.x, vertex_2d.y, z)
                 vertices_3d.append(vertex_3d)
                 ind += 1
-        
+        """
         # Create 3d cells.
         print("-> Creating 3d subsurface cells.")
         cells_3d = [];
@@ -559,6 +634,28 @@ def main(argv):
             cells_2d.append( Cell(5, element, ind, ind) )
             ind += 1;
         
+        # Create 3d subsurface vertices.
+        layer_depths = []
+        layer_depths.extend(layer_depths_soilt)
+        layer_depths.extend(layer_depths_soilb)
+        layer_depths.append(0.0)
+        nz = len(layer_depths)
+        dz_cum = 0.0
+        vertices_3d = []
+        vertices_3d.extend(vertices_2d)
+        for layer_depth in layer_depths:
+            dz_cum += layer_depth
+            for vertex_2d in vertices_2d:
+                if layer_depth > 0.0:
+                    z = vertex_2d.z - dz_cum
+                else:
+                    z = bedrock_bottom_elev
+                vertex_3d = Vertex(ind, vertex_2d.x, vertex_2d.y, z)
+                vertices_3d.append(vertex_3d)
+                ind += 1
+            
+        
+        """
         # Compute vertical cell dimensions.
         print("-> Computing vertical cell dimensions.")
         dz_lst = []
@@ -583,7 +680,7 @@ def main(argv):
                 vertex_3d = Vertex(ind, vertex_2d.x, vertex_2d.y, z)
                 vertices_3d.append(vertex_3d)
                 ind += 1
-        
+        """
         # Create 3d cells.
         print("-> Creating 3d subsurface cells.")
         cells_3d = [];
@@ -665,6 +762,199 @@ def main(argv):
     for pos, feat in enumerate(features):
         idx.insert(pos, feat.bounds)
     
+    # Temporarily here.
+    stormnet_data = {}
+    cell_outlet_id = {}
+    cell_outlet_dist = {}
+    # sinks and junctions lists have been loaded
+    # Create cells (VTK line) of junctions.
+    # Create cells (VTK line) of links
+    
+    # Material library (links: diameter, roughness, junctions: diameter, roughness)
+    # Initial conditions (links: ?, junctions: init_water_elevat)
+    # Boundary conditions (links: end_point_type: 0/1, end_point0, end_point1, junctions: ?)
+    
+    # - Define end point location type (surface cell or junction) of each link and location id (surface cell or well id).
+    # - Search locations of junctions in the surface grid (surface cell id).
+    # - Define link material (pipe diameter, roughness).
+    # - Define junction material (well diameter, open_lid, roughness).
+    # - Find junction surface elevation from the digital elevation map.
+    
+    # Create junction top vertices.
+    print("-> Creating junction vertices.")
+    verts_junction_top = []
+    ind = 0
+    for junction in junctions:
+        point = shape(junction['geometry'])
+        verts_junction_top.append(Vertex(ind, point.x, point.y, 0.0))
+        ind += 1
+    
+    # Extract junction top vertex elevation from the digital elevation map.
+    print("-> Extracting vertex elevation values from digital elevation map rasters.")
+    pixel_values = pick_raster_pixel_values(verts_junction_top, dem_sources)
+    for vertex, pixel_value in zip(verts_junction_top, pixel_values):
+        vertex.z = pixel_value
+    
+    # Add junction bottom vertices.
+    print("-> Adding junction bottom vertices.")
+    vertices_junction = []
+    ind = 0
+    for vert_junc, junction in zip(verts_junction_top, junctions):
+        vert_junc.id = ind
+        vertices_junction.append(vert_junc)
+        ind += 1
+        vert_junc = copy(vert_junc)
+        vert_junc.id = ind
+        depth = junction['properties']['depth']
+        vert_junc.z = vert_junc.z - depth
+        vertices_junction.append(vert_junc)
+        ind += 1
+    
+    # Create vtk junction cells.
+    print("-> Creating vtk junction cells.")
+    cells_junction = [];
+    for ind, junction in enumerate(junctions):
+        vert_indices = [2 * ind, 2 * ind + 1]
+        # Find the surface cell where the junction is located.
+        con_cell_ind = -1
+        vert_junc = vertices_junction[ vert_indices[0] ]
+        vert_junc_pnt = Point(vert_junc.x, vert_junc.y)
+        inters_ids = list(idx.intersection(vert_junc_pnt.bounds))
+        for inters_id in inters_ids:
+            try:
+                if vert_junc_pnt.intersects(features[inters_id]):
+                    con_cell_ind = inters_id
+            except:
+                print("-> Error in intersection computation with outlet "
+                      "in system {}".format(network_id))
+        # 3 = VTK line
+        cells_junction.append( Cell(3, vert_indices, ind, con_cell_ind) )
+    
+    # Create vtk link vertices.
+    print("-> Creating link vertices.")
+    vertices_link = []
+    ind = 0
+    link_to_junc_thresh = 1.0
+    link_bound_conds = []
+    for link in links:
+        line = shape(link['geometry'])
+        x_lst,y_lst = line.coords.xy
+        # These are currently not used.
+        elev0 = link['properties']['elev0']
+        elev1 = link['properties']['elev1']
+        elevations = [elev0, elev1]
+        link_bound_conds_loc = []
+        for x, y, elev in zip(x_lst, y_lst, elevations):
+            # Initialize connection properties.
+            vert_end = Vertex(ind, x, y, elev)
+            conn_type = -1
+            conn_id = -1
+            conn_elev = 0.0
+            # Search link location in the junctions.
+            if conn_id == -1:
+                conn_id = find_closest_junc(link_to_junc_thresh, vert_end, 
+                                            vertices_junction, cells_junction)
+                if conn_id != -1:
+                    conn_type = 0
+                    junc_vert_id = cells_junction[conn_id].vert_indices[1]
+                    conn_elev = vertices_junction[junc_vert_id].z
+            # Search link location in the surface grid.
+            if conn_id == -1:
+                conn_type = -1
+                end_link_geom = Point(x, y)
+                inters_ids = list(idx.intersection(end_link_geom.bounds))
+                for inters_id in inters_ids:
+                    try:
+                        if end_link_geom.intersects(features[inters_id]):
+                            conn_type = 1
+                            conn_id = inters_id
+                            conn_elev = cells_2d[inters_id].cp.z
+                    except:
+                        print("-> Error in intersection computation with outlet "
+                              "in system {}".format(network_id))
+            # Save link connection properties.
+            link_bound_conds_loc.append(conn_type)
+            link_bound_conds_loc.append(conn_id)
+            vert_end.z = conn_elev
+            vertices_link.append(vert_end)
+            ind += 1
+        link_bound_conds.append(link_bound_conds_loc)
+    
+    # Create vtk link cells.
+    print("-> Creating vtk link cells.")
+    cells_link = [];
+    for ind, link in enumerate(links):
+        vert_indices = [2 * ind, 2 * ind + 1]
+        con_cell_ind = -1
+        # 3 = VTK line
+        cells_link.append( Cell(3, vert_indices, ind, con_cell_ind) )
+    
+    # Create link mesh output.
+    print("-> Creating link mesh output.")
+    mesh_link_lst = create_output_data(vertices_link, cells_link, 3)
+    
+    # Write link mesh to disk.
+    print("-> Writing link mesh to disk.")
+    path_link_vtk = os.path.join(st_path_to_output_folder, st_link_vtk_file)
+    write_output_data_to_disk(path_link_vtk, mesh_link_lst, ' ')
+    
+    # Create junction mesh output.
+    print("-> Creating junction mesh output.")
+    mesh_junction_lst = create_output_data(vertices_junction, cells_junction, 3)
+    
+    # Write junction mesh to disk.
+    print("-> Writing junction mesh to disk.")
+    path_junction_vtk = os.path.join(st_path_to_output_folder, st_junction_vtk_file)
+    write_output_data_to_disk(path_junction_vtk, mesh_junction_lst, ' ')
+    
+    
+    # Link the building roofs to stormwater network junctions.
+    # Connect the roof to adjacent street/ground cell if there are no 
+    print("-> Link the building roofs to stormwater network junctions.")
+    landuse_building = 2
+    link_to_junc_thresh = 50.0
+    for cell_id, cell in enumerate(cells_2d):
+        if cell.material == landuse_building:
+            # Find the closest junction in the stormwater drainage network.
+            conn_id = find_closest_junc(link_to_junc_thresh, cell.cp, 
+                                        vertices_junction, cells_junction)
+            #print(conn_id)
+            
+            """
+            distance = sys.float_info.max
+            sys_id = -1
+            for network_id, network_data in stormnet_data.items():
+                # Only search the closed wells to accelerate search.
+                for junction in network_data['junct_closed']:
+                    geom_junc = shape(junction['geometry'])
+                    distance_new = cell_cp.distance(geom_junc)
+                    if distance_new < distance:
+                        distance = distance_new
+                        sys_id = junction['properties']['sys_id']
+            # Select first outlet from the outlet list.
+            outlet = None
+            if sys_id != -1 and len(stormnet_data[sys_id]['outlets']) > 0:
+                outlet = stormnet_data[sys_id]['outlets'][0]
+            if outlet != None:
+                # Process outlet.
+                geom_outlet = shape(outlet['geometry'])
+                distance = cell_cp.distance(geom_outlet)
+                inters_ids = list(idx.intersection(geom_outlet.bounds))
+                cell_id_outlet = -1
+                for inters_id in inters_ids:
+                    try:
+                        if geom_outlet.intersects(features[inters_id]):
+                            cell_id_outlet = inters_id
+                    except:
+                        print("-> Error in intersection computation with outlet "
+                              "in system {}".format(network_id))
+                if cell_id_outlet != -1:
+                    cell_outlet_id[cell_id] = cell_id_outlet
+                    cell_outlet_dist[cell_id] = distance
+                    cells_2d[cell_id].junction_and_outlet = distance
+            """
+    
+    """
     # Sort the stormwater network wells into systems.
     print("-> Sorting the stormwater network wells into systems.")
     stormnet_data = {}
@@ -766,6 +1056,7 @@ def main(argv):
                     cell_outlet_id[cell_id] = cell_id_outlet
                     cell_outlet_dist[cell_id] = distance
                     cells_2d[cell_id].junction_and_outlet = distance
+    """
     
     # Find locations of sinks.
     print("-> Finding locations of sinks.")
@@ -816,7 +1107,16 @@ def main(argv):
     pixel_values_soil_top = pick_raster_pixel_values(cell_cps, soiltype_top_sources)    
     pixel_values_soil_bottom = pick_raster_pixel_values(cell_cps, soiltype_bottom_sources)
     
+    
+    
+    
     # Save soil data into 3d grid.
+    # SET MATERIAL 0 as UNDEFINED, 1 AS BEDROCK, THEN CONTINUE NORMALLY WITH INDICES
+    #layer_depths.extend(layer_depths_soilt)
+    #layer_depths.extend(layer_depths_soilb)
+    #layer_depths.append(0.0)
+    #nz = len(layer_depths)
+    
     print("-> Saving soil data into subsurface grid.")
     for ind_2d in range(0, len(cells_2d)):
         surface_elevation = cells_2d[ind_2d].cp.z
@@ -833,7 +1133,10 @@ def main(argv):
             # Set land use of cells outside the mask as undefined.
             if cells_2d[ind_2d].mask == 0:
                 cells_3d[ind_3d].material = 0
-            
+    
+    
+    
+    
     # Find out how many unique bottom soil classes exist in the subsurface cells.
     print("-> Finding out how many unique bottom soil classes exist in the subsurface cells.")
     soil_classes = {}
@@ -878,6 +1181,8 @@ def main(argv):
     # Write settings file.
     print("-> Writing settings file.")
     # Parse output paths to project folder.
+    path_link_vtk = os.path.join(st_path_to_project_folder, st_link_vtk_file).replace("\\","/")
+    path_junction_vtk = os.path.join(st_path_to_project_folder, st_junction_vtk_file).replace("\\","/")
     path_2d_vtk = os.path.join(st_path_to_project_folder, st_surface_vtk_file).replace("\\","/")
     path_3d_vtk = os.path.join(st_path_to_project_folder, st_subsurface_vtk_file).replace("\\","/")
     path_3d_grid_map = os.path.join(st_path_to_project_folder, st_subsurface_grid_map_file).replace("\\","/")
@@ -894,6 +1199,8 @@ def main(argv):
     path_phreeqc_db_spec_map = os.path.join(st_path_to_project_folder, st_phreeqc_db_spec_map_file).replace("\\","/")
     path_phreeqc_mol_weight_map = os.path.join(st_path_to_project_folder, st_phreeqc_mol_weight_map_file).replace("\\","/")
     path_csv_output = os.path.join(st_path_to_project_folder, st_csv_output_file).replace("\\","/")
+    path_link_vtk_output = os.path.join(st_path_to_project_folder, st_link_vtk_output).replace("\\","/")
+    path_junction_vtk_output = os.path.join(st_path_to_project_folder, st_junction_vtk_output).replace("\\","/")
     path_surface_vtk_output = os.path.join(st_path_to_project_folder, st_surface_vtk_output).replace("\\","/")
     if st_subsurface_vtk_output != '-':
         path_subsurface_vtk_output = os.path.join(st_path_to_project_folder, st_subsurface_vtk_output).replace("\\","/")
@@ -910,6 +1217,14 @@ def main(argv):
         ["Results save interval (s)",st_result_save_inter],
         ["Grid save start time (s)",st_grid_save_start_time],
         ["Grid save stop time (s)",st_grid_save_stop_time],
+        ["Network water flow solver (0/1)",st_net_flow_solver],
+        ["Max. number of iterations for network water flow (-)",st_net_flow_num_of_iter],
+        ["Iteration cut threshold for network water flow (m)",st_net_flow_iter_thresh],
+        ["Network water flow solution implicity (-)",st_net_flow_iter_implic],
+        ["Network water flow bisection iteration threshold (m)",st_net_flow_bis_it_thr],
+        ["Network water flow bisection max. number of iterations (-)",st_net_flow_bis_num_it],
+        ["Network water flow bisection left depth limit (m)",st_net_flow_bis_left],
+        ["Network water flow bisection right depth limit (m)",st_net_flow_bis_right],
         ["Surface water flow solver (0/1)",st_sur_flow_solver],
         ["Max. number of iterations for surface water flow (-)",st_sur_flow_num_of_iter],
         ["Iteration cut threshold for surface water flow (m)",st_sur_flow_iter_thresh],
@@ -954,6 +1269,8 @@ def main(argv):
         ["Iteration cut threshold for solute transport (concentration)",st_sub_trans_iter_thr],
         ["Solute transport solution implicity (-)",st_sub_trans_iter_imp],
         ["Molecular diffusion rate (m2/s)",st_sub_trans_mol_diff],
+        ["Network link input path (path to vtk)",path_link_vtk],
+        ["Network junction input path (path to vtk)",path_junction_vtk],
         ["Surface grid input path (path to vtk)",path_2d_vtk],
         ["Subsurface grid input path (path to vtk)",path_3d_vtk],
         ["Subsurface grid map input path (path to grid map)",path_3d_grid_map],
@@ -970,6 +1287,8 @@ def main(argv):
         ["PHREEQC database species name map path",path_phreeqc_db_spec_map],
         ["PHREEQC species molecular weight map path",path_phreeqc_mol_weight_map],
         ["Results csv output path",path_csv_output],
+        ["Network link VTK output folder path",path_link_vtk_output],
+        ["Network junction VTK output folder path",path_junction_vtk_output],
         ["Surface VTK output folder path",path_surface_vtk_output],
         ["Subsurface VTK output folder path",path_subsurface_vtk_output],
     ]
@@ -1167,7 +1486,7 @@ def printBanner():
     print(" /\\__/ / | |   | |  / /^\\ \\ | | | | | | (_) | (_| |  __/ |")
     print(" \\____/  \\_/   \\_/  \\/   \\/ |_| |_| |_|\\___/ \\__,_|\\___|_|")
     print("----------------------------------------------------------")
-    print("                   - STYX grid builder -                  ")
+    print("                   - STYX mesh builder -                  ")
     print("          2d/3d hydrological modelling framework.         ")
     print("                  Version 0.1 (2021).                     ")
     print("             Developed under the MIT license.             ")

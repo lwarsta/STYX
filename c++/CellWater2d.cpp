@@ -13,7 +13,7 @@ CellWater2d::CellWater2d()
     sinkIndex = -1;
     watVolToSinks = 0.0;
 }
-
+/*
 double CellWater2d::compFlowToManhole(double timeStep)
 {
     double waterVolume = 0.0;
@@ -68,7 +68,8 @@ double CellWater2d::compFlowToManhole(double timeStep)
     }
     return waterVolume;
 }
-
+*/
+/*
 void CellWater2d::addWatVolToStorm(double watVolStorm, double distToOutlet, 
     double simTime)
 {
@@ -82,7 +83,8 @@ void CellWater2d::addWatVolToStorm(double watVolStorm, double distToOutlet,
     //stormWatItems.push_back(stormWatItem);
     stormWatItems.insert(stormWatItems.begin(), stormWatItem);
 }
-
+*/
+/*
 void CellWater2d::removeWatVolFromStorm(double simTime)
 {
     if (geom != 0 && geom->getArea() > 0.0)
@@ -102,7 +104,7 @@ void CellWater2d::removeWatVolFromStorm(double simTime)
         }
     }
 }
-
+*/
 void CellWater2d::removeWatBySinks(double timeStep)
 {
     if (sinkIndex >= 0 && geom != 0 && geom->getArea() > 0.0)
