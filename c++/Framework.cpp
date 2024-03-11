@@ -55,7 +55,7 @@ int Framework::initialize(std::string pathToSettings)
         std::cout << path.c_str() << "\n";
         return 1;
     }
-
+    /*
     // Load and tokenize network link geometry.
     std::cout << "Loading network link geometry:\n";
     std::vector < std::vector<std::string> > tokens_link;
@@ -73,7 +73,7 @@ int Framework::initialize(std::string pathToSettings)
     // Build the network.
     std::cout << "Initializing network geometry:\n";
     network.build_network(tokens_junc, tokens_link);
-
+    */
     // Load and tokenize data and build the 2d mesh.
     std::cout << "Initializing 2d geometry cells:\n";
     std::vector < std::vector<std::string> > tokens2d;
@@ -503,7 +503,7 @@ int Framework::run()
                     area_fact * geom2d->getArea() + massInPrecip);
             }
         }
-
+        /*
         // Run brute force network flow model with 
         // diffusion wave simplification.
         if (settings.get_int("wat_flow_net_solver") == 1)
@@ -519,7 +519,7 @@ int Framework::run()
                 settings.get_double("bis_iter_cut_right_wat_net"));
             modelWaterNetDiffBrute.run(grid2d, network);
         }
-
+        */
         // Run brute force 2d overland flow model with 
         // diffusion wave simplification.
         if (settings.get_int("wat_flow_2d_solver") == 1)

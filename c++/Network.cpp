@@ -1,7 +1,7 @@
 #include "Network.h"
 
 void Network::build_network(std::vector<std::vector<std::string>>& tokens_jnc,
-                            std::vector<std::vector<std::string>>& tokens_lnk) {
+                            std::vector<std::vector<std::string>>& tokens_lnk) {    
     // Load junction data.
     std::vector<std::vector<double>> points_jnc;
     std::vector<std::vector<int>> cells_jnc;
@@ -218,7 +218,7 @@ void Network::parseVTKData(const std::vector<std::vector<std::string>>& tokens,
     std::vector<std::vector<int>> dataCellsInt;
     std::vector<double> dataCellReal;
     std::vector<std::vector<double>> dataCellsReal;
-
+    
     for (size_t i = 0; i < tokens.size(); i++) {
         for (size_t j = 0; j < tokens.at(i).size(); j++) {
             // Process point data.
