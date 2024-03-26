@@ -426,7 +426,14 @@ std::string Grid2d::parse_unstruct_vtk_mesh()
     for (size_t i = 0; i < vertices.size(); i++) {
         ss << vertices.at(i).x << " " << vertices.at(i).y << " " << vertices.at(i).z << std::endl;
     }
-    ss << "CELLS" << " " << cells_geom.size() << " " << 4 * cells_geom.size() << std::endl; // 5
+    int num_of_vert = 0;
+    if (cells_geom.at(0).getGeomType() == 5) {
+        num_of_vert = 4;
+    }
+    else if (cells_geom.at(0).getGeomType() == 9) {
+        num_of_vert = 5;
+    }
+    ss << "CELLS" << " " << cells_geom.size() << " " << num_of_vert * cells_geom.size() << std::endl;
     for (size_t i = 0; i < cells_geom.size(); i++) {
         std::vector<int> vertIndices = cells_geom.at(i).getVertIndices();
         ss << vertIndices.size();
