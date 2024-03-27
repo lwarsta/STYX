@@ -2,7 +2,7 @@
 
 PhreeqcWrapper::PhreeqcWrapper()
 {
-    phreeqc_rm = 0;
+    //phreeqc_rm = 0;
     num_of_threads = 1;
     num_of_cells_3d = 0;
     num_of_species = 0;
@@ -11,7 +11,7 @@ PhreeqcWrapper::PhreeqcWrapper()
 
 PhreeqcWrapper::~PhreeqcWrapper()
 {
-    delete phreeqc_rm;
+    //delete phreeqc_rm;
 }
 
 int PhreeqcWrapper::countWordOccurrences(std::string input, std::string search_word)
@@ -49,6 +49,7 @@ void PhreeqcWrapper::initialize(
     Grid2d& grid2d, 
     Grid3d& grid3d)
 {
+    /*
     try
     {
         // Initialise PHREEQCRM.
@@ -236,6 +237,7 @@ void PhreeqcWrapper::initialize(
         std::cerr << e_string << std::endl;
         //return IRM_FAIL;
     }
+    */
 }
 
 double PhreeqcWrapper::get_bound_cond(size_t index)
@@ -257,6 +259,7 @@ double PhreeqcWrapper::get_bound_cond(size_t index)
 
 int PhreeqcWrapper::run(Settings& settings, Grid2d& grid2d, Grid3d& grid3d)
 {
+    /*
     try
     {
         std::vector<double> concIn(num_of_species * num_of_cells_3d, 0.0); // cellsPerSolute3d
@@ -366,29 +369,29 @@ int PhreeqcWrapper::run(Settings& settings, Grid2d& grid2d, Grid3d& grid3d)
 
         // Print concentration table.
         std::cout << "\n";
-        /*
-        for (size_t j = 0; j < cellsPerSolute3d; j++)
-        {
-            for (size_t i = 0; i < 2 * num_of_species; i++)
-            {
-                if (i < num_of_species)
-                {
-                    size_t index = i * cellsPerSolute3d + j;
-                    //std::cout << concIn.at(index);
-                }
-                else if (i >= num_of_species)
-                {
-                    size_t index = (i - num_of_species) * cellsPerSolute3d + j;
-                    //std::cout << concOut.at(index);
-                }
-                if (i < 2 * num_of_species - 1)
-                {
-                    std::cout << ",";
-                }
-            }
-            std::cout << "\n";
-        }
-        */
+        
+        //for (size_t j = 0; j < cellsPerSolute3d; j++)
+        //{
+        //    for (size_t i = 0; i < 2 * num_of_species; i++)
+        //    {
+        //        if (i < num_of_species)
+        //        {
+        //            size_t index = i * cellsPerSolute3d + j;
+        //            //std::cout << concIn.at(index);
+        //        }
+        //        else if (i >= num_of_species)
+        //        {
+        //            size_t index = (i - num_of_species) * cellsPerSolute3d + j;
+        //            //std::cout << concOut.at(index);
+        //        }
+        //        if (i < 2 * num_of_species - 1)
+        //        {
+        //            std::cout << ",";
+        //        }
+        //    }
+        //    std::cout << "\n";
+        //}
+        
         return 2; // IRM_FAIL;
     }
     catch (...)
@@ -411,29 +414,31 @@ int PhreeqcWrapper::run(Settings& settings, Grid2d& grid2d, Grid3d& grid3d)
 
         // Print concentration table.
         std::cout << "\n";
-        /*
-        for (size_t j = 0; j < cellsPerSolute3d; j++)
-        {
-            for (size_t i = 0; i < 2 * num_of_species; i++)
-            {
-                if (i < num_of_species)
-                {
-                    size_t index = i * cellsPerSolute3d + j;
-                    std::cout << concIn.at(index);
-                }
-                else if (i >= num_of_species)
-                {
-                    size_t index = (i - num_of_species) * cellsPerSolute3d + j;
-                    std::cout << concOut.at(index);
-                }
-                if (i < 2 * num_of_species - 1)
-                {
-                    std::cout << ",";
-                }
-            }
-            std::cout << "\n";
-        }
-        */
+        
+        //for (size_t j = 0; j < cellsPerSolute3d; j++)
+        //{
+        //    for (size_t i = 0; i < 2 * num_of_species; i++)
+        //    {
+        //        if (i < num_of_species)
+        //        {
+        //            size_t index = i * cellsPerSolute3d + j;
+        //            std::cout << concIn.at(index);
+        //        }
+        //        else if (i >= num_of_species)
+        //        {
+        //            size_t index = (i - num_of_species) * cellsPerSolute3d + j;
+        //            std::cout << concOut.at(index);
+        //        }
+        //        if (i < 2 * num_of_species - 1)
+        //        {
+        //            std::cout << ",";
+        //        }
+        //    }
+        //    std::cout << "\n";
+        //}
+        
         return 3; // IRM_FAIL;
     }
+    */
+    return 0;
 }
