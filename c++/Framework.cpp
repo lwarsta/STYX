@@ -55,7 +55,7 @@ int Framework::initialize(std::string pathToSettings)
         std::cout << path.c_str() << "\n";
         return 1;
     }
-    /*
+
     // Load and tokenize network link geometry.
     std::cout << "Loading network link geometry:\n";
     std::vector < std::vector<std::string> > tokens_link;
@@ -73,7 +73,7 @@ int Framework::initialize(std::string pathToSettings)
     // Build the network.
     std::cout << "Initializing network geometry:\n";
     network.build_network(tokens_junc, tokens_link);
-    */
+
     // Load and tokenize data and build the 2d mesh.
     std::cout << "Initializing 2d geometry cells:\n";
     std::vector < std::vector<std::string> > tokens2d;

@@ -10,18 +10,19 @@ void Network::build_network(std::vector<std::vector<std::string>>& tokens_jnc,
     std::vector<std::vector<std::vector<int>>> field_data_int_jnc;
     std::vector<std::string> field_data_double_names_jnc;
     std::vector<std::vector<std::vector<double>>> field_data_double_jnc;
+    
     parseVTKData(tokens_jnc, points_jnc, cells_jnc, cell_types_jnc, field_data_int_names_jnc,
                  field_data_int_jnc, field_data_double_names_jnc, field_data_double_jnc);
+    
     //printVTKData(points_jnc, cells_jnc, cell_types_jnc, field_data_int_names_jnc,
     //             field_data_int_jnc, field_data_double_names_jnc, 
     //             field_data_double_jnc);
-    
     // Save points.
     for (const auto& point : points_jnc) {
         Vertex vert((int)vertices.size(), point.at(0), point.at(1), point.at(2));
         vertices.push_back(vert);
     }
-
+    
     // Load link data.
     std::vector<std::vector<double>> points_lnk;
     std::vector<std::vector<int>> cells_lnk;
@@ -35,7 +36,7 @@ void Network::build_network(std::vector<std::vector<std::string>>& tokens_jnc,
     //printVTKData(points_lnk, cells_lnk, cell_types_lnk, field_data_int_names_lnk,
     //             field_data_int_lnk, field_data_double_names_lnk, 
     //             field_data_double_lnk);
-
+    
     // Save points. All the points are saved into the same vector.
     // push_back seems to redo memory allocation?
     int cum_verts = (int)vertices.size();
@@ -45,7 +46,7 @@ void Network::build_network(std::vector<std::vector<std::string>>& tokens_jnc,
         Vertex vert((int)vertices.size(), point.at(0), point.at(1), point.at(2));
         vertices.push_back(vert);
     }
-
+    
     // Create geometry junction cells.
     for (size_t cell_ind = 0; cell_ind < cells_jnc.size(); cell_ind++) {
         // Create a vector of pointers to vertices.
@@ -58,7 +59,7 @@ void Network::build_network(std::vector<std::vector<std::string>>& tokens_jnc,
                                       cells_jnc.at(cell_ind), vtx_ptrs);
         juncs_geom.push_back(cell_geom);
     }
-
+    
     // Save data to junction cells.
     for (size_t ser_ind = 0; ser_ind < field_data_int_names_jnc.size(); ser_ind++) {
         // Save grid connection index data.
@@ -186,6 +187,7 @@ void Network::build_network(std::vector<std::vector<std::string>>& tokens_jnc,
         juncs_geom.at(ind_jnc_1).save_link(1, ind_lnk, &links_geom.at(ind_lnk),
                       ind_jnc_0, &juncs_geom.at(ind_jnc_0));
     }
+    
 }
 
 void Network::parseVTKData(const std::vector<std::vector<std::string>>& tokens,
@@ -230,6 +232,10 @@ void Network::parseVTKData(const std::vector<std::vector<std::string>>& tokens,
                 else if (itemCount == 1) {
                     numOfPoints = atoi(tokens.at(i).at(j).c_str());
                     points.reserve(numOfPoints);
+
+                    if (numOfPoints == 0) {
+                        pointsFound = false;
+                    }
                 }
                 else if (itemCount > 2) {
                     std::vector<double> point;
@@ -260,6 +266,10 @@ void Network::parseVTKData(const std::vector<std::vector<std::string>>& tokens,
                 else if (itemCount == 1) {
                     numOfCells = atoi(tokens.at(i).at(j).c_str());
                     cells.reserve(numOfCells);
+
+                    if (numOfCells == 0) {
+                        cellsFound = false;
+                    }
                 }
                 else if (itemCount > 2) {
                     std::vector<int> vertIndices;
@@ -293,6 +303,10 @@ void Network::parseVTKData(const std::vector<std::vector<std::string>>& tokens,
                 else if (itemCount == 1) {
                     numOfCellTypes = atoi(tokens.at(i).at(j).c_str());
                     cell_types.reserve(numOfCellTypes);
+
+                    if (numOfCellTypes == 0) {
+                        cellTypesFound = false;
+                    }
                 }
                 else if (itemCount > 1) {
                     int cellType = atoi(tokens.at(i).at(j).c_str());
