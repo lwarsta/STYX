@@ -31,7 +31,7 @@ class Vertex:
         self.z = z
 
 class Cell:
-    def __init__(self, geom_type, vert_indices, id, grid_connection):
+    def __init__(self, geom_type, vert_indices, id, grid_connection, junc_type):
         """
         """
         self.geom_type = geom_type
@@ -46,6 +46,7 @@ class Cell:
         #self.soiltype = 0        
         self.hydraulic_head = 0.0 # TEMPORARY ?
         self.junction_and_outlet = -1 # TEMPORARY
+        self.junc_type = junc_type
 
 def avg(lst):
     """
@@ -240,8 +241,10 @@ def main(argv):
     st_subsurface_grid_map_file = cfg.get('input', 'st_subsurface_grid_map_file')
     st_settings_file = cfg.get('input', 'st_settings_file')
     st_atmos_forc_file = cfg.get('input', 'st_atmos_forc_file')
+    st_bound_cond_net_junc_file = cfg.get('input', 'st_bound_cond_net_junc_file')
     st_bound_cond_2d_file = cfg.get('input', 'st_bound_cond_2d_file')
     st_bound_cond_3d_file = cfg.get('input', 'st_bound_cond_3d_file')
+    st_init_cond_net_junc_file = cfg.get('input', 'st_init_cond_net_junc_file')
     st_init_cond_2d_file = cfg.get('input', 'st_init_cond_2d_file')
     st_init_cond_3d_file = cfg.get('input', 'st_init_cond_3d_file')
     st_materials_2d_file = cfg.get('input', 'st_materials_2d_file')
@@ -400,7 +403,7 @@ def main(argv):
                 vert_indices.append(ind_x + 1 + (ind_y + 1) * (nx + 1) )
                 vert_indices.append(ind_x + (ind_y + 1) * (nx + 1))
                 con_cell_ind = ind_x + ind_y * nx
-                cells_2d.append( Cell(9, vert_indices, ind, con_cell_ind) )
+                cells_2d.append( Cell(9, vert_indices, ind, con_cell_ind, 0) )
                 ind += 1;
         
         # Create 3d subsurface vertices.
@@ -423,22 +426,6 @@ def main(argv):
                 vertices_3d.append(vertex_3d)
                 ind += 1
         
-        """
-        # Create 3d subsurface vertices.
-        print("-> Creating 3d subsurface vertices.")
-        vertices_3d = []
-        vertices_3d.extend(vertices_2d)
-        dz_cum = 0.0
-        ind = 0
-        for k in range(0, nz):
-            dz = dz_lst[k]
-            dz_cum += dz
-            for vertex_2d in vertices_2d:
-                z = vertex_2d.z - dz_cum
-                vertex_3d = Vertex(ind, vertex_2d.x, vertex_2d.y, z)
-                vertices_3d.append(vertex_3d)
-                ind += 1
-        """
         # Create 3d cells.
         print("-> Creating 3d subsurface cells.")
         cells_3d = [];
@@ -458,7 +445,7 @@ def main(argv):
                     con_cell_ind = -1
                     if ind_z == 0:
                         con_cell_ind = ind_x + ind_y * nx
-                    cells_3d.append( Cell(12, vert_indices, ind, con_cell_ind) )
+                    cells_3d.append( Cell(12, vert_indices, ind, con_cell_ind, 0) )
                     ind += 1;
     # Create an unstructured mesh.
     elif meshing_method == 2:
@@ -631,7 +618,7 @@ def main(argv):
             # Remove the id number from the list.
             element.pop(0)
             # 5 = VTK triangle
-            cells_2d.append( Cell(5, element, ind, ind) )
+            cells_2d.append( Cell(5, element, ind, ind, 0) )
             ind += 1;
         
         # Create 3d subsurface vertices.
@@ -653,34 +640,7 @@ def main(argv):
                 vertex_3d = Vertex(ind, vertex_2d.x, vertex_2d.y, z)
                 vertices_3d.append(vertex_3d)
                 ind += 1
-            
         
-        """
-        # Compute vertical cell dimensions.
-        print("-> Computing vertical cell dimensions.")
-        dz_lst = []
-        if len(z_distr) == nz and round(sum(z_distr),3) == 1.0:
-            for dz_frac in z_distr:
-                dz_lst.append(lz * dz_frac)
-        else:
-            for dz in range(0, nz):
-                dz_lst.append(lz / nz)
-        
-        # Create 3d subsurface vertices.
-        print("-> Creating 3d subsurface vertices.")
-        vertices_3d = []
-        vertices_3d.extend(vertices_2d)
-        dz_cum = 0.0
-        ind = 0
-        for k in range(0, nz):
-            dz = dz_lst[k]
-            dz_cum += dz
-            for vertex_2d in vertices_2d:
-                z = vertex_2d.z - dz_cum
-                vertex_3d = Vertex(ind, vertex_2d.x, vertex_2d.y, z)
-                vertices_3d.append(vertex_3d)
-                ind += 1
-        """
         # Create 3d cells.
         print("-> Creating 3d subsurface cells.")
         cells_3d = [];
@@ -701,7 +661,7 @@ def main(argv):
                 if ind_z == 0:
                     con_cell_ind = index_2d
                 # 13 = VTK wedge
-                cells_3d.append( Cell(13, vert_indices, ind, con_cell_ind) )
+                cells_3d.append( Cell(13, vert_indices, ind, con_cell_ind, 0) )
                 ind += 1;
     else:
         vertices_2d = []
@@ -827,8 +787,10 @@ def main(argv):
             except:
                 print("-> Error in intersection computation with outlet "
                       "in system {}".format(network_id))
+        # Extract type data field.
+        junc_type = junction['properties']['type']
         # 3 = VTK line
-        cells_junction.append( Cell(3, vert_indices, ind, con_cell_ind) )
+        cells_junction.append( Cell(3, vert_indices, ind, con_cell_ind, junc_type) )
     
     # Create vtk link vertices.
     print("-> Creating link vertices.")
@@ -887,7 +849,7 @@ def main(argv):
         vert_indices = [2 * ind, 2 * ind + 1]
         con_cell_ind = -1
         # 3 = VTK line
-        cells_link.append( Cell(3, vert_indices, ind, con_cell_ind) )
+        cells_link.append( Cell(3, vert_indices, ind, con_cell_ind, 0) )
     
     # Create link mesh output.
     print("-> Creating link mesh output.")
@@ -909,154 +871,17 @@ def main(argv):
     
     
     # Link the building roofs to stormwater network junctions.
-    # Connect the roof to adjacent street/ground cell if there are no 
+    # Connect the roof to adjacent street/ground cell if there are no junctions
+    # in range.
     print("-> Link the building roofs to stormwater network junctions.")
     landuse_building = 2
-    link_to_junc_thresh = 50.0
+    link_to_junc_thresh = 200.0
     for cell_id, cell in enumerate(cells_2d):
         if cell.material == landuse_building:
             # Find the closest junction in the stormwater drainage network.
             conn_id = find_closest_junc(link_to_junc_thresh, cell.cp, 
                                         vertices_junction, cells_junction)
-            #print(conn_id)
-            
-            """
-            distance = sys.float_info.max
-            sys_id = -1
-            for network_id, network_data in stormnet_data.items():
-                # Only search the closed wells to accelerate search.
-                for junction in network_data['junct_closed']:
-                    geom_junc = shape(junction['geometry'])
-                    distance_new = cell_cp.distance(geom_junc)
-                    if distance_new < distance:
-                        distance = distance_new
-                        sys_id = junction['properties']['sys_id']
-            # Select first outlet from the outlet list.
-            outlet = None
-            if sys_id != -1 and len(stormnet_data[sys_id]['outlets']) > 0:
-                outlet = stormnet_data[sys_id]['outlets'][0]
-            if outlet != None:
-                # Process outlet.
-                geom_outlet = shape(outlet['geometry'])
-                distance = cell_cp.distance(geom_outlet)
-                inters_ids = list(idx.intersection(geom_outlet.bounds))
-                cell_id_outlet = -1
-                for inters_id in inters_ids:
-                    try:
-                        if geom_outlet.intersects(features[inters_id]):
-                            cell_id_outlet = inters_id
-                    except:
-                        print("-> Error in intersection computation with outlet "
-                              "in system {}".format(network_id))
-                if cell_id_outlet != -1:
-                    cell_outlet_id[cell_id] = cell_id_outlet
-                    cell_outlet_dist[cell_id] = distance
-                    cells_2d[cell_id].junction_and_outlet = distance
-            """
-    
-    """
-    # Sort the stormwater network wells into systems.
-    print("-> Sorting the stormwater network wells into systems.")
-    stormnet_data = {}
-    for feature in stormnet_wells:
-        sys_id = feature['properties']['sys_id']
-        # Create dictionaries for outlets and junctions.
-        if sys_id not in stormnet_data:
-            stormnet_data[sys_id] = {}
-            stormnet_data[sys_id]['outlets'] = []
-            stormnet_data[sys_id]['junct_open'] = []
-            stormnet_data[sys_id]['junct_closed'] = []
-        # Save outlets.
-        if feature['properties']['junc_type'] == 1:
-            stormnet_data[sys_id]['outlets'].append(feature)
-        # Save junctions with open lid.
-        elif feature['properties']['junc_cat'] == 0:
-            stormnet_data[sys_id]['junct_open'].append(feature)
-        # Save junctions with closed lid.
-        elif feature['properties']['junc_cat'] == 1:
-            stormnet_data[sys_id]['junct_closed'].append(feature)
-    
-    # Find locations of junctions and outlets.
-    print("-> Finding locations of junctions and outlets.")
-    cell_outlet_id = {}
-    cell_outlet_dist = {}
-    for network_id, network_data in stormnet_data.items():
-        # Select first outlet from the outlet list.
-        outlet = None
-        if len(network_data['outlets']) > 0:
-                outlet = network_data['outlets'][0]
-        if outlet != None:
-            # Process outlet.
-            geom_outlet = shape(outlet['geometry'])
-            inters_ids = list(idx.intersection(geom_outlet.bounds))
-            cell_id_outlet = -1
-            for inters_id in inters_ids:
-                try:
-                    if geom_outlet.intersects(features[inters_id]):
-                        cell_id_outlet = inters_id
-                except:
-                    print("-> Error in intersection computation with outlet "
-                          "in system {}".format(network_id))
-            # Process junctions.
-            for junction in network_data['junct_open']:
-                geom_junc = shape(junction['geometry'])
-                inters_ids = list(idx.intersection(geom_junc.bounds))
-                cell_id_junction = -1
-                distance = -1.0
-                for inters_id in inters_ids:
-                    try:
-                        if geom_junc.intersects(features[inters_id]):
-                            cell_id_junction = inters_id
-                            distance = geom_junc.distance(geom_outlet)
-                    except:
-                        print("-> Error in intersection computation with junction "
-                              "in system {}".format(network_id))
-                if cell_id_junction != -1:
-                    cell_outlet_id[cell_id_junction] = cell_id_outlet
-                    cell_outlet_dist[cell_id_junction] = distance
-                    cells_2d[cell_id_junction].junction_and_outlet = distance
-        else:
-            print("-> System {} does not have an outlet.".format(network_id))
-    
-    # Find the closest outlet to a cell with builidng landuse type.
-    print("-> Finding the closest outlet to a cell with builidng landuse type.")
-    landuse_building = 2
-    for cell_id, cell in enumerate(cells_2d):
-        if cell.material == landuse_building:
-            # Find the closest well in the stormwater drainage network.
-            cell_cp = Point(cell.cp.x, cell.cp.y)
-            distance = sys.float_info.max
-            sys_id = -1
-            for network_id, network_data in stormnet_data.items():
-                # Only search the closed wells to accelerate search.
-                for junction in network_data['junct_closed']:
-                    geom_junc = shape(junction['geometry'])
-                    distance_new = cell_cp.distance(geom_junc)
-                    if distance_new < distance:
-                        distance = distance_new
-                        sys_id = junction['properties']['sys_id']
-            # Select first outlet from the outlet list.
-            outlet = None
-            if sys_id != -1 and len(stormnet_data[sys_id]['outlets']) > 0:
-                outlet = stormnet_data[sys_id]['outlets'][0]
-            if outlet != None:
-                # Process outlet.
-                geom_outlet = shape(outlet['geometry'])
-                distance = cell_cp.distance(geom_outlet)
-                inters_ids = list(idx.intersection(geom_outlet.bounds))
-                cell_id_outlet = -1
-                for inters_id in inters_ids:
-                    try:
-                        if geom_outlet.intersects(features[inters_id]):
-                            cell_id_outlet = inters_id
-                    except:
-                        print("-> Error in intersection computation with outlet "
-                              "in system {}".format(network_id))
-                if cell_id_outlet != -1:
-                    cell_outlet_id[cell_id] = cell_id_outlet
-                    cell_outlet_dist[cell_id] = distance
-                    cells_2d[cell_id].junction_and_outlet = distance
-    """
+            cell.junction_and_outlet = conn_id
     
     # Find locations of sinks.
     print("-> Finding locations of sinks.")
@@ -1107,9 +932,6 @@ def main(argv):
     pixel_values_soil_top = pick_raster_pixel_values(cell_cps, soiltype_top_sources)    
     pixel_values_soil_bottom = pick_raster_pixel_values(cell_cps, soiltype_bottom_sources)
     
-    
-    
-    
     # Save soil data into 3d grid.
     # SET MATERIAL 0 as UNDEFINED, 1 AS BEDROCK, THEN CONTINUE NORMALLY WITH INDICES
     #layer_depths.extend(layer_depths_soilt)
@@ -1133,9 +955,6 @@ def main(argv):
             # Set land use of cells outside the mask as undefined.
             if cells_2d[ind_2d].mask == 0:
                 cells_3d[ind_3d].material = 0
-    
-    
-    
     
     # Find out how many unique bottom soil classes exist in the subsurface cells.
     print("-> Finding out how many unique bottom soil classes exist in the subsurface cells.")
@@ -1190,6 +1009,9 @@ def main(argv):
     path_3d_mat_lib = os.path.join(st_path_to_project_folder, st_materials_3d_file).replace("\\","/")
     path_2d_init_cond = os.path.join(st_path_to_project_folder, st_init_cond_2d_file).replace("\\","/")
     path_3d_init_cond = os.path.join(st_path_to_project_folder, st_init_cond_3d_file).replace("\\","/")
+    
+    path_net_junc_bound_cond = os.path.join(st_path_to_project_folder, st_bound_cond_net_junc_file).replace("\\","/")
+    
     path_2d_bound_cond = os.path.join(st_path_to_project_folder, st_bound_cond_2d_file).replace("\\","/")
     path_3d_bound_cond = os.path.join(st_path_to_project_folder, st_bound_cond_3d_file).replace("\\","/")
     path_atmos_forcing = os.path.join(st_path_to_project_folder, st_atmos_forc_file).replace("\\","/")
@@ -1278,8 +1100,11 @@ def main(argv):
         ["Subsurface volumetric material library path",path_3d_mat_lib],
         ["Surface surface initial conditions file path",path_2d_init_cond],
         ["Subsurface volumetric initial conditions file path",path_3d_init_cond],
+        
+        ["Network boundary conditions file path",path_net_junc_bound_cond],
         ["Surface surface boundary conditions file path",path_2d_bound_cond],
         ["Subsurface volumetric boundary conditions file path",path_3d_bound_cond],
+        
         ["Atmospheric forcing input path",path_atmos_forcing],
         ["Solute properties library path",path_solute_prop],
         ["PHREEQC input data path",path_phreeqc_sim_descr],
@@ -1354,6 +1179,16 @@ def main(argv):
     path_init_cond_3d = os.path.join(st_path_to_output_folder, st_init_cond_3d_file)
     write_output_data_to_disk(path_init_cond_3d, init_cond_3d_data, ',')
     
+    # Write network boundary conditions file.
+    print("-> Writing network boundary conditions file.")
+    bound_cond_net_data = [
+        ['Cell id','Type (-)'],
+    ]
+    for cell_id, cell in enumerate(cells_junction):
+        bound_cond_net_data.append([cell.id, cell.junc_type])
+    path_bound_cond_net = os.path.join(st_path_to_output_folder, st_bound_cond_net_junc_file) # st_bound_cond_net_file, FIX THIS
+    write_output_data_to_disk(path_bound_cond_net, bound_cond_net_data, ',')
+    
     # Write surface boundary conditions file.
     print("-> Writing surface boundary conditions file.")
     bound_cond_2d_data = [
@@ -1372,6 +1207,10 @@ def main(argv):
         sink_id = -1
         if cell_id in sink_id_in_cell:
             sink_id = sink_id_in_cell[cell_id]
+        
+        # MODIFICATIONS
+        outlet_id = cell.junction_and_outlet
+        
         bound_cond_2d_data.append([cell.id, outlet_id, distance_to_outlet, sink_id])
     path_bound_cond_2d = os.path.join(st_path_to_output_folder, st_bound_cond_2d_file)
     write_output_data_to_disk(path_bound_cond_2d, bound_cond_2d_data, ',')

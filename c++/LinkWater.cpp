@@ -3,7 +3,7 @@
 LinkWater::LinkWater()
 {
     geom = 0;
-	mann_n = 0.013; // temporary for concrete pipe
+	mann_n = 0.013; // temporary for concrete pipe 0.013
 }
 
 void LinkWater::comp_flow_area_and_hydr_rad(

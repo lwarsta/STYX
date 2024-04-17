@@ -107,8 +107,18 @@ int Framework::initialize(std::string pathToSettings)
     // Load network materials, initial conditions and boundary conditions.
     // NOT IMPLEMENTED YET!
     std::vector<std::vector<std::string>> materials_net;
-    std::vector<std::vector<std::string>> bound_cond_net;
+    //std::vector<std::vector<std::string>> bound_cond_net;
     std::vector<std::vector<std::string>> init_cond_net;
+
+    std::vector < std::vector<std::string> > bound_cond_net_junc;
+    bound_cond_net_junc = fileIO.load_and_tokenize_file(
+        settings.get_str("bound_cond_net_junc_path"), ',');
+
+    if (bound_cond_net_junc.size() == 0)
+    {
+        std::cout << "-> net junc boundary condition file was not found or empty\n";
+        return 1;
+    }
 
     // Load 2d materials, initial conditions and boundary conditions.
     std::cout << "Loading 2d materials, initial conditions and" 
@@ -185,7 +195,7 @@ int Framework::initialize(std::string pathToSettings)
     // Create and initialize the water network.
     std::cout << "Creating and initializing the water network:\n";
     network.create_water_network_items();
-    network.init_water_network(settings, materials_net, bound_cond_net,
+    network.init_water_network(settings, materials_net, bound_cond_net_junc,
                                init_cond_net);
     
     // Create and initialize 3d water cells.
@@ -365,6 +375,7 @@ int Framework::run()
     double drainVolCum = 0.0;
     double drainVolCum5min = 0.0;
     double sinkVolCum = 0.0;
+    double outfall_vol_cum = 0.0;
     std::vector<double> infMassCum;
     infMassCum.assign(num_of_species, 0.0);
     std::vector<double> drainMassCum;
@@ -389,9 +400,11 @@ int Framework::run()
     header.push_back("hydraulic head [m]");
     header.push_back("pressure head [m]");
     header.push_back("water content [m3/m3]");
+    header.push_back("network water volume [m3]");
     header.push_back("surface water volume [m3]");
     header.push_back("subsurface water volume [m3]");
     header.push_back("precipitation cum. [m3]");
+    header.push_back("Outfall cum. [m3]");
     header.push_back("evaporation cum. [m3]");
     header.push_back("water infiltration cum. [m3]");
     header.push_back("drain discharge cum. [m3]");
@@ -437,33 +450,7 @@ int Framework::run()
             cells_water_2d->at(i).setWaterDepth(waterDepthOld + precip * time_step);
             precipVolCum += precip * time_step * geom2d->getArea();
         }
-        /*
-        // Remove water from overland domain that enters stormwater network.
-        for (size_t i = 0; i < cells_water_2d->size(); i++)
-        {
-            double watVolStorm;
-            watVolStorm = cells_water_2d->at(i).compFlowToManhole(time_step);
 
-            if (watVolStorm > 0.0)
-            {
-                int outletInd = cells_water_2d->at(i).getOutletIndex();
-                double distToOutlet = cells_water_2d->at(i).getDistToOutlet();
-
-                if (outletInd >= 0 && outletInd < cells_water_2d->size())
-                {
-                    cells_water_2d->at(outletInd).addWatVolToStorm(watVolStorm,
-                        distToOutlet, sim_time);
-                }
-            }
-        }
-        */
-        /*
-        // Add water to overland domain discharging from stormwater network.
-        for (size_t i = 0; i < cells_water_2d->size(); i++)
-        {
-            cells_water_2d->at(i).removeWatVolFromStorm(sim_time);
-        }
-        */
         // Remove water from overland domain that discharges into sinks.
         for (size_t i = 0; i < cells_water_2d->size(); i++)
         {
@@ -503,9 +490,9 @@ int Framework::run()
                     area_fact * geom2d->getArea() + massInPrecip);
             }
         }
-        /*
+        
         // Run brute force network flow model with 
-        // diffusion wave simplification.
+        // iterative diffusion wave simplification.
         if (settings.get_int("wat_flow_net_solver") == 1)
         {
             modelWaterNetDiffBrute.configure(
@@ -519,7 +506,22 @@ int Framework::run()
                 settings.get_double("bis_iter_cut_right_wat_net"));
             modelWaterNetDiffBrute.run(grid2d, network);
         }
-        */
+
+        // Run explicit network flow model.
+        else if (settings.get_int("wat_flow_net_solver") == 2)
+        {
+            modelWaterNetExplicit.configure(
+                settings.get_int("iter_stop_wat_net"),
+                settings.get_double("iter_cut_thresh_wat_net"),
+                settings.get_double("implicity_wat_net"),
+                time_step,
+                settings.get_double("bis_iter_cut_thresh_wat_net"),
+                settings.get_int("bis_iter_stop_wat_net"),
+                settings.get_double("bis_iter_cut_left_wat_net"),
+                settings.get_double("bis_iter_cut_right_wat_net"));
+            modelWaterNetExplicit.run(grid2d, network);
+        }
+        
         // Run brute force 2d overland flow model with 
         // diffusion wave simplification.
         if (settings.get_int("wat_flow_2d_solver") == 1)
@@ -681,7 +683,24 @@ int Framework::run()
         // Save results.
         if (timePrint >= settings.get_double("time_print_thresh"))
         {
-            // Compute water volume in the 2d rgid.
+            // Compute water volume in the network.
+            double wat_vol_net = 0.0;
+            std::vector<JuncWater>* water_juncs = network.get_water_juncs();
+
+            for (size_t i = 0; i < water_juncs->size(); i++)
+            {
+                JuncGeom* geom_junc = water_juncs->at(i).get_geom();
+                wat_vol_net += water_juncs->at(i).get_water_depth() * geom_junc->get_area();
+            }
+
+            // outfall_vol_cum
+            for (size_t i = 0; i < water_juncs->size(); i++)
+            {
+                outfall_vol_cum += water_juncs->at(i).get_outfall_volume();
+                water_juncs->at(i).set_outfall_volume(0.0);
+            }
+            
+            // Compute water volume in the 2d grid.
             double waterVolume2d = 0.0;
 
             for (size_t i = 0; i < cells_water_2d->size(); i++)
@@ -741,14 +760,22 @@ int Framework::run()
                 settings.get_int("cell_index")).getPresHead()));
             resultRow.push_back(std::to_string(cells_water_3d->at(
                 settings.get_int("cell_index")).getWatCont()));
+            resultRow.push_back(std::to_string(wat_vol_net));
             resultRow.push_back(std::to_string(waterVolume2d));
             resultRow.push_back(std::to_string(waterVolume3d));
             resultRow.push_back(std::to_string(precipVolCum));
+            resultRow.push_back(std::to_string(outfall_vol_cum));
             resultRow.push_back(std::to_string(evapVolCum));
             resultRow.push_back(std::to_string(infWatCum));
             resultRow.push_back(std::to_string(drainVolCum));
             resultRow.push_back(std::to_string(drainVolCum5min));
             resultRow.push_back(std::to_string(sinkVolCum));
+
+            // TEMPORARILY ADD WATER DEPTHS INTO THE RESULTS.
+            for (size_t i = 0; i < water_juncs->size(); i++)
+            {
+                resultRow.push_back(std::to_string(water_juncs->at(i).get_water_depth()));
+            }
 
             for (size_t i = 0; i < num_of_species; i++)
             {

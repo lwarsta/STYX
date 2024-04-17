@@ -153,19 +153,20 @@ void Settings::initialize(std::vector < std::vector<std::string> > settings)
     settings_str["materials_3d_path"] =           settings.at(67).at(1);
     settings_str["init_cond_2d_path"] =           settings.at(68).at(1);
     settings_str["init_cond_3d_path"] =           settings.at(69).at(1);
-    settings_str["bound_cond_2d_path"] =          settings.at(70).at(1);
-    settings_str["bound_cond_3d_path"] =          settings.at(71).at(1);
-    settings_str["atmos_forcing_data_path"] =     settings.at(72).at(1);
-    settings_str["solute_properties_path"] =      settings.at(73).at(1);
-    settings_str["phreeqc_input_path"] =          settings.at(74).at(1);
-    settings_str["phreeqc_chem_db_path"] =        settings.at(75).at(1);
-    settings_str["phreeqc_spec_map_path"] =       settings.at(76).at(1);
-    settings_str["phreeqc_mol_weight_map_path"] = settings.at(77).at(1);
-    settings_str["output_csv_path"] =             settings.at(78).at(1);
-    settings_str["output_link_vtk_path"] =        settings.at(79).at(1);
-    settings_str["output_junc_vtk_path"] =        settings.at(80).at(1);
-    settings_str["output_surf_vtk_path"] =        settings.at(81).at(1);
-    settings_str["output_subs_vtk_path"] =        settings.at(82).at(1);
+    settings_str["bound_cond_net_junc_path"] =    settings.at(70).at(1);
+    settings_str["bound_cond_2d_path"] =          settings.at(71).at(1);
+    settings_str["bound_cond_3d_path"] =          settings.at(72).at(1);
+    settings_str["atmos_forcing_data_path"] =     settings.at(73).at(1);
+    settings_str["solute_properties_path"] =      settings.at(74).at(1);
+    settings_str["phreeqc_input_path"] =          settings.at(75).at(1);
+    settings_str["phreeqc_chem_db_path"] =        settings.at(76).at(1);
+    settings_str["phreeqc_spec_map_path"] =       settings.at(77).at(1);
+    settings_str["phreeqc_mol_weight_map_path"] = settings.at(78).at(1);
+    settings_str["output_csv_path"] =             settings.at(79).at(1);
+    settings_str["output_link_vtk_path"] =        settings.at(80).at(1);
+    settings_str["output_junc_vtk_path"] =        settings.at(81).at(1);
+    settings_str["output_surf_vtk_path"] =        settings.at(82).at(1);
+    settings_str["output_subs_vtk_path"] =        settings.at(83).at(1);
 
     /*
     std::string runTestsStr = settings.at(1).at(1);

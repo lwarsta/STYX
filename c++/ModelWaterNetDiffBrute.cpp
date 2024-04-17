@@ -34,62 +34,6 @@ void ModelWaterNetDiffBrute::preprocess(Grid2d &grid2d, Network &network)
 		{
 			water_juncs->at(i).set_water_depth(0.0);
 		}
-		/*
-		// Compute water volume flowing from a surface cell to a junction.
-		JuncGeom* junc_geom = water_juncs->at(i).get_geom();
-		int grid_conn = junc_geom->getGridConnection();
-
-		if (junc_geom != 0 && grid_conn >= 0 && grid_conn < water_cells->size()) {
-			// Decrease overland water depth by flow threshold depth.
-			double cell_water_depth = water_cells->at(grid_conn).getWaterDepth();
-			cell_water_depth -= water_cells->at(grid_conn).getDeprStor();
-
-			if (cell_water_depth < 0.0)
-			{
-				cell_water_depth = 0.0;
-			}
-
-			// Compute flow velocity, flux and volume entering the junction.
-			double cell_mann_n = water_cells->at(grid_conn).getMannN();
-			CellGeom2d* geom_cell = water_cells->at(grid_conn).getGeom();
-
-			if (cell_mann_n > 0.0 && geom_cell != 0) {
-				double cell_slope = geom_cell->getAverageSlope();
-				double junc_diam = junc_geom->get_diameter();
-				double cell_veloc = pow(cell_water_depth, 2.0 / 3.0) / cell_mann_n *
-									sqrt(cell_slope);
-				double inflow_vol = 2.0 * algorithms.get_pi() * junc_diam *
-									cell_water_depth * cell_veloc * time_step;
-
-				// Restrict inflow to existing water volume in the cell.
-				if (inflow_vol > cell_water_depth * geom_cell->getArea()) {
-					inflow_vol = cell_water_depth * geom_cell->getArea();
-				}
-
-				// Restrict inflow to existing space in the junction.
-				double junc_water_depth = water_juncs->at(i).get_water_depth();
-				double junc_area = junc_geom->get_area();
-				double junc_depth = junc_geom->get_depth();
-				
-				if (inflow_vol > (junc_depth - junc_water_depth) * junc_area) {
-					inflow_vol = (junc_depth - junc_water_depth) * junc_area;
-				}
-
-				if (inflow_vol < 0.0) {
-					inflow_vol = 0.0;
-				}
-				
-				// Update water depths in the junction and overland cell.
-				if (geom_cell->getArea() > 0.0 && junc_area > 0.0) {
-					cell_water_depth = cell_water_depth - 
-										inflow_vol / geom_cell->getArea();
-					junc_water_depth = junc_water_depth + inflow_vol / junc_area;
-					water_juncs->at(i).set_water_depth(junc_water_depth);
-					water_cells->at(grid_conn).setWaterDepth(cell_water_depth);
-				}
-			}
-		}
-		*/
 
 		// Compute water flow from a surface cell into a junction.
 		JuncGeom* junc_geom = water_juncs->at(i).get_geom();
@@ -149,8 +93,8 @@ void ModelWaterNetDiffBrute::preprocess(Grid2d &grid2d, Network &network)
 					cell_water_depth = cell_water_depth -
 						inflow_vol / geom_cell->getArea();
 					junc_water_depth = junc_water_depth + inflow_vol / junc_area;
-					water_juncs->at(i).set_water_depth(junc_water_depth);
-					water_cells->at(grid_conn).setWaterDepth(cell_water_depth);
+					//water_juncs->at(i).set_water_depth(junc_water_depth);  // Comment out to cut exchange of water between surface
+					//water_cells->at(grid_conn).setWaterDepth(cell_water_depth);  // Comment out to cut exchange of water between surface
 				}
 			}
 		}
@@ -252,12 +196,30 @@ double ModelWaterNetDiffBrute::calc_residual(JuncWater& junc_water, double depth
 
 				double filled_area = 0.0;
 				double hydraulic_rad = 0.0;
+				// TEMPORARILY COMMENTED OUT
 				links.at(i)->comp_flow_area_and_hydr_rad(water_depth_lnk, 
 					                                     filled_area,
 					                                     hydraulic_rad);
+				//hydraulic_rad = 2.0 * water_depth_lnk + 0.1;  // TEMPORARILY HERE
+				//filled_area = water_depth_lnk * 0.1; // TEMPORARILY HERE
 				double velocity = 1.0 / mann_n * sqrt(slope) * 
 					              pow(hydraulic_rad, 2.0 / 3.0);
+				if (velocity > 3.0) {
+					velocity = 3.0;
+				}
+				else if (velocity < -3.0) {
+					velocity = -3.0;
+				}
 				double flux = filled_area * velocity;
+				//std::cout << "XXXXXXXXXXXXXXXXXXXXXXXX" << "\n";
+				//std::cout << "mann_n: " << mann_n << "\n";
+				//std::cout << "slope: " << slope << "\n";
+				//std::cout << "water_depth_lnk: " << water_depth_lnk << "\n";
+				//std::cout << "hydraulic_rad: " << hydraulic_rad << "\n";
+				//std::cout << "filled_area: " << filled_area << "\n";
+				//std::cout << "velocity: " << velocity << "\n";
+				//std::cout << "flux: " << flux << "\n";
+				//std::cout << "volume: " << flux * time_step << "\n";
 				volume_water += flux * time_step;
 				velocities.at(i) = velocity;
 				fluxes.at(i) = flux;
@@ -286,12 +248,30 @@ double ModelWaterNetDiffBrute::calc_residual(JuncWater& junc_water, double depth
 
 				double filled_area = 0.0;
 				double hydraulic_rad = 0.0;
+				// TEMPORARILY COMMENTED OUT
 				links.at(i)->comp_flow_area_and_hydr_rad(water_depth_lnk, 
 					                                     filled_area,
 					                                     hydraulic_rad);
+				//hydraulic_rad = 2.0 * water_depth_lnk + 0.1;  // TEMPORARILY HERE
+				//filled_area = water_depth_lnk * 0.1; // TEMPORARILY HERE
 				double velocity = -1.0 / mann_n * sqrt(-slope) * 
 					              pow(hydraulic_rad, 2.0 / 3.0);
+				if (velocity > 3.0) {
+					velocity = 3.0;
+				}
+				else if (velocity < -3.0) {
+					velocity = -3.0;
+				}
 				double flux = filled_area * velocity;
+				//std::cout << "XXXXXXXXXXXXXXXXXXXXXXXX" << "\n";
+				//std::cout << "mann_n: " << mann_n << "\n";
+				//std::cout << "slope: " << slope << "\n";
+				//std::cout << "water_depth_lnk: " << water_depth_lnk << "\n";
+				//std::cout << "hydraulic_rad: " << hydraulic_rad << "\n";
+				//std::cout << "filled_area: " << filled_area << "\n";
+				//std::cout << "velocity: " << velocity << "\n";
+				//std::cout << "flux: " << flux << "\n";
+				//std::cout << "volume: " << flux * time_step << "\n";
 				volume_water += flux * time_step;
 				velocities.at(i) = velocity;
 				fluxes.at(i) = flux;
@@ -370,7 +350,6 @@ void ModelWaterNetDiffBrute::iterate(Grid2d &grid2d, Network &network)
 
 void ModelWaterNetDiffBrute::postprocess(Grid2d &grid2d, Network &network)
 {
-	
 	std::vector<JuncWater>* water_juncs = network.get_water_juncs();
 	std::vector<CellWater2d>* water_cells = grid2d.get_water_cells();
 
@@ -394,73 +373,9 @@ void ModelWaterNetDiffBrute::postprocess(Grid2d &grid2d, Network &network)
 				double junc_water_volume = (junc_water_depth - junc_depth) * junc_area;
 				cell_water_depth += junc_water_volume / cell_area;
 				junc_water_depth = junc_depth;
-				water_juncs->at(i).set_water_depth(junc_water_depth);
-				water_cells->at(grid_conn).setWaterDepth(cell_water_depth);
+				//water_juncs->at(i).set_water_depth(junc_water_depth); // Comment out to cut exchange of water between surface
+				//water_cells->at(grid_conn).setWaterDepth(cell_water_depth); // Comment out to cut exchange of water between surface
 			}
 		}
 	}
-	/*
-	std::cout << "Water volume in the surface cells: " << std::endl;
-	double water_vol_cells = 0.0;
-
-	for (size_t i = 0; i < water_cells->size(); i++)
-	{
-		CellGeom2d* geom_cell = water_cells->at(i).getGeom();
-		water_vol_cells += water_cells->at(i).getWaterDepth() * geom_cell->getArea();
-	}
-
-	std::cout << water_vol_cells << std::endl;
-	
-	std::cout << "Printing junction geometry: " << std::endl;
-
-	for (size_t i = 0; i < water_juncs->size(); i++)
-	{
-		JuncGeom* junc_geom = water_juncs->at(i).get_geom();
-		std::vector<Vertex*> junc_vrts = junc_geom->getVertPointers();
-		double elevation = junc_vrts.at(1)->z; // bottom
-		std::cout << i << "x: " << junc_vrts.at(1)->x << "y: " << junc_vrts.at(1)->y << "z: " << junc_vrts.at(1)->z << std::endl;
-	}
-
-	std::cout << "Printing water volumes: " << std::endl;
-
-	for (size_t i = 0; i < water_juncs->size(); i++)
-	{
-		JuncGeom* junc_geom = water_juncs->at(i).get_geom();
-		double junc_area = junc_geom->get_area();
-		std::cout << i << ": " << water_juncs->at(i).get_water_depth() * junc_area << std::endl;
-	}
-
-	std::cout << "Printing water depths: " << std::endl;
-
-	for (size_t i = 0; i < water_juncs->size(); i++)
-	{
-		std::cout << i << ": " << water_juncs->at(i).get_water_depth() << std::endl;
-	}
-
-	std::cout << "Printing velocities: " << std::endl;
-
-	for (size_t i = 0; i < water_juncs->size(); i++)
-	{
-		std::cout << i << ": ";
-		std::vector<double> velocities = water_juncs->at(i).get_velocities();
-
-		for (size_t j = 0; j < velocities.size(); j++) {
-			std::cout << velocities.at(j) << ", ";
-		}
-		std::cout << std::endl;
-	}
-
-	std::cout << "Printing fluxes: " << std::endl;
-
-	for (size_t i = 0; i < water_juncs->size(); i++)
-	{
-		std::cout << i << ": ";
-		std::vector<double> fluxes = water_juncs->at(i).get_fluxes();
-
-		for (size_t j = 0; j < fluxes.size(); j++) {
-			std::cout << fluxes.at(j) << ", ";
-		}
-		std::cout << std::endl;
-	}
-	*/
 }

@@ -4,6 +4,8 @@ JuncWater::JuncWater() {
     geom = 0;
 	water_depth = 0.0;
 	water_depth_old = 0.0;
+	type = -1;
+	outfall_volume = 0.0;
 }
 
 void JuncWater::save_link(int id_lnk_end, int id_lnk, LinkWater* link_water, 
