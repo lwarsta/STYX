@@ -201,6 +201,7 @@ def main(argv):
     st_sub_flow_num_of_iter = cfg.getint('input', 'st_sub_flow_num_of_iter')
     st_sub_flow_iter_thresh = cfg.getfloat('input', 'st_sub_flow_iter_thresh')
     st_sub_flow_iter_implic = cfg.getfloat('input', 'st_sub_flow_iter_implic')
+    st_weather_data_interval = cfg.getfloat('input', 'st_weather_data_interval')
     st_precip_corr_factor = cfg.getfloat('input', 'st_precip_corr_factor')
     st_evap_corr_factor = cfg.getfloat('input', 'st_evap_corr_factor')
     st_heat_solver = cfg.getint('input', 'st_heat_solver')
@@ -1064,6 +1065,7 @@ def main(argv):
         ["Max. number of iterations for subsurface water flow (-)",st_sub_flow_num_of_iter],
         ["Iteration cut threshold for subsurface water flow (m)",st_sub_flow_iter_thresh],
         ["Subsurface Water flow solution implicity (-)",st_sub_flow_iter_implic],
+        ["Weather data interval (s)",st_weather_data_interval],
         ["precipitation correction factor (-)",st_precip_corr_factor],
         ["Evapotranspiration correction factor (-)",st_evap_corr_factor],
         ["Heat transport solver (0/1/2)",st_heat_solver],

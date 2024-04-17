@@ -12,10 +12,12 @@ private:
     std::vector<std::string> dateTime; // change this to decimal date
     std::vector < std::vector<double> > atmosForcingData;
     double time;
+    double weather_data_interv;
     double precipFact;
     double petFact;
 public:
     AtmosControl();
+    void set_weather_data_interval(double weather_data_interv_new) { weather_data_interv = weather_data_interv_new; }
     void set_precip_fact(double precipFactNew){precipFact = precipFactNew;}
     void set_pet_fact(double petFactNew){petFact = petFactNew;}
     void set_atmos_forcing_data(std::vector < std::vector<std::string> > atmosForcingDataStr);

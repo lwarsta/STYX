@@ -5,12 +5,12 @@ AtmosControl::AtmosControl()
     time = 0.0;
     precipFact = 1.0;
     petFact = 1.0;
+    weather_data_interv = 0.0;
 }
 
 double AtmosControl::get_precip()
 {
-    double timeStepData = 300.0;
-    size_t timeStep = time / timeStepData;
+    size_t timeStep = time / weather_data_interv;
     double dataVal = 0.0;
     size_t dataIndex = 0;
     if (timeStep >= 0 && timeStep < atmosForcingData.size())
@@ -18,7 +18,7 @@ double AtmosControl::get_precip()
         // mm to m conversion done below.
         if (atmosForcingData.at(timeStep).at(dataIndex) > 0.0)
         {
-            dataVal = 0.001 * precipFact * atmosForcingData.at(timeStep).at(dataIndex) / timeStepData;
+            dataVal = 0.001 * precipFact * atmosForcingData.at(timeStep).at(dataIndex) / weather_data_interv;
         }
     }
     return dataVal;
@@ -26,8 +26,7 @@ double AtmosControl::get_precip()
 
 double AtmosControl::get_pet()
 {
-    double timeStepData = 300.0;
-    size_t timeStep = time / timeStepData;
+    size_t timeStep = time / weather_data_interv;
     double dataVal = 0.0;
     size_t dataIndex = 1;
     if (timeStep >= 0 && timeStep < atmosForcingData.size())
@@ -35,7 +34,7 @@ double AtmosControl::get_pet()
         // mm to m conversion done below.
         if (atmosForcingData.at(timeStep).at(dataIndex) > 0.0)
         {
-            dataVal = 0.001 * petFact * atmosForcingData.at(timeStep).at(dataIndex) / timeStepData;
+            dataVal = 0.001 * petFact * atmosForcingData.at(timeStep).at(dataIndex) / weather_data_interv;
         }
     }
     return dataVal;
@@ -43,8 +42,7 @@ double AtmosControl::get_pet()
 
 double AtmosControl::get_air_temp()
 {
-    double timeStepData = 300.0;
-    size_t timeStep = time / timeStepData;
+    size_t timeStep = time / weather_data_interv;
     double dataVal = 0.0;
     size_t dataIndex = 2;
     if (timeStep >= 0 && timeStep < atmosForcingData.size())

@@ -300,6 +300,7 @@ int Framework::initialize(std::string pathToSettings)
 
 	// Save atmospheric settings and load atmospheric forcing data.
     std::cout << "Saving settings and loading atmospheric forcing data:\n";
+    atmosControl.set_weather_data_interval(settings.get_double("weather_data_interval"));
     atmosControl.set_precip_fact(settings.get_double("area_fact"));
     atmosControl.set_pet_fact(settings.get_double("pet_fact"));
     std::vector < std::vector<std::string> > atmos_forcing_data;
