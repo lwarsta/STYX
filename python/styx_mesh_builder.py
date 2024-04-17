@@ -232,21 +232,23 @@ def main(argv):
     st_sub_trans_iter_thr = cfg.getfloat('input', 'st_sub_trans_iter_thr')
     st_sub_trans_iter_imp = cfg.getfloat('input', 'st_sub_trans_iter_imp')
     st_sub_trans_mol_diff = cfg.getfloat('input', 'st_sub_trans_mol_diff')
-    
     st_link_vtk_file = cfg.get('input', 'st_link_vtk_file')
     st_junction_vtk_file = cfg.get('input', 'st_junction_vtk_file')
-    
     st_surface_vtk_file = cfg.get('input', 'st_surface_vtk_file')
     st_subsurface_vtk_file = cfg.get('input', 'st_subsurface_vtk_file')
     st_subsurface_grid_map_file = cfg.get('input', 'st_subsurface_grid_map_file')
     st_settings_file = cfg.get('input', 'st_settings_file')
     st_atmos_forc_file = cfg.get('input', 'st_atmos_forc_file')
     st_bound_cond_net_junc_file = cfg.get('input', 'st_bound_cond_net_junc_file')
+    st_bound_cond_net_link_file = cfg.get('input', 'st_bound_cond_net_link_file')
     st_bound_cond_2d_file = cfg.get('input', 'st_bound_cond_2d_file')
     st_bound_cond_3d_file = cfg.get('input', 'st_bound_cond_3d_file')
     st_init_cond_net_junc_file = cfg.get('input', 'st_init_cond_net_junc_file')
+    st_init_cond_net_link_file = cfg.get('input', 'st_init_cond_net_link_file')
     st_init_cond_2d_file = cfg.get('input', 'st_init_cond_2d_file')
     st_init_cond_3d_file = cfg.get('input', 'st_init_cond_3d_file')
+    st_materials_net_junc_file = cfg.get('input', 'st_materials_net_junc_file')
+    st_materials_net_link_file = cfg.get('input', 'st_materials_net_link_file')
     st_materials_2d_file = cfg.get('input', 'st_materials_2d_file')
     st_materials_3d_file = cfg.get('input', 'st_materials_3d_file')
     st_solute_prop_file = cfg.get('input', 'st_solute_prop_file')
@@ -1005,13 +1007,16 @@ def main(argv):
     path_2d_vtk = os.path.join(st_path_to_project_folder, st_surface_vtk_file).replace("\\","/")
     path_3d_vtk = os.path.join(st_path_to_project_folder, st_subsurface_vtk_file).replace("\\","/")
     path_3d_grid_map = os.path.join(st_path_to_project_folder, st_subsurface_grid_map_file).replace("\\","/")
+    path_net_junc_mat_lib = os.path.join(st_path_to_project_folder, st_materials_net_junc_file).replace("\\","/")
+    path_net_link_mat_lib = os.path.join(st_path_to_project_folder, st_materials_net_link_file).replace("\\","/")
     path_2d_mat_lib = os.path.join(st_path_to_project_folder, st_materials_2d_file).replace("\\","/")
     path_3d_mat_lib = os.path.join(st_path_to_project_folder, st_materials_3d_file).replace("\\","/")
+    path_net_junc_init_cond = os.path.join(st_path_to_project_folder, st_init_cond_net_junc_file).replace("\\","/")
+    path_net_link_init_cond = os.path.join(st_path_to_project_folder, st_init_cond_net_link_file).replace("\\","/")
     path_2d_init_cond = os.path.join(st_path_to_project_folder, st_init_cond_2d_file).replace("\\","/")
     path_3d_init_cond = os.path.join(st_path_to_project_folder, st_init_cond_3d_file).replace("\\","/")
-    
     path_net_junc_bound_cond = os.path.join(st_path_to_project_folder, st_bound_cond_net_junc_file).replace("\\","/")
-    
+    path_net_link_bound_cond = os.path.join(st_path_to_project_folder, st_bound_cond_net_link_file).replace("\\","/")
     path_2d_bound_cond = os.path.join(st_path_to_project_folder, st_bound_cond_2d_file).replace("\\","/")
     path_3d_bound_cond = os.path.join(st_path_to_project_folder, st_bound_cond_3d_file).replace("\\","/")
     path_atmos_forcing = os.path.join(st_path_to_project_folder, st_atmos_forc_file).replace("\\","/")
@@ -1096,15 +1101,18 @@ def main(argv):
         ["Surface grid input path (path to vtk)",path_2d_vtk],
         ["Subsurface grid input path (path to vtk)",path_3d_vtk],
         ["Subsurface grid map input path (path to grid map)",path_3d_grid_map],
+        ["Network junction material library path",path_net_junc_mat_lib],
+        ["Network link material library path",path_net_link_mat_lib],
         ["Surface surface material library path",path_2d_mat_lib],
         ["Subsurface volumetric material library path",path_3d_mat_lib],
+        ["Network junction initial conditions file path",path_net_junc_init_cond],
+        ["Network link initial conditions file path",path_net_link_init_cond],
         ["Surface surface initial conditions file path",path_2d_init_cond],
         ["Subsurface volumetric initial conditions file path",path_3d_init_cond],
-        
-        ["Network boundary conditions file path",path_net_junc_bound_cond],
+        ["Network junction boundary conditions file path",path_net_junc_bound_cond],
+        ["Network link boundary conditions file path",path_net_link_bound_cond],
         ["Surface surface boundary conditions file path",path_2d_bound_cond],
         ["Subsurface volumetric boundary conditions file path",path_3d_bound_cond],
-        
         ["Atmospheric forcing input path",path_atmos_forcing],
         ["Solute properties library path",path_solute_prop],
         ["PHREEQC input data path",path_phreeqc_sim_descr],
@@ -1119,6 +1127,24 @@ def main(argv):
     ]
     path_settings = os.path.join(st_path_to_output_folder, st_settings_file)
     write_output_data_to_disk(path_settings, setttings_data, ',')
+
+    # Write network junction materials file.
+    print("-> Writing network junction materials file.")
+    materials_net_junc_data = [
+        ['Material (-)', 'Diameter (m)'],
+    ]
+    materials_net_junc_data.append(['Concrete well', 0.5])
+    path_materials_net_junc = os.path.join(st_path_to_output_folder, st_materials_net_junc_file)
+    write_output_data_to_disk(path_materials_net_junc, materials_net_junc_data, ',')
+
+    # Write network link materials file.
+    print("-> Writing network link materials file.")
+    materials_net_link_data = [
+        ['Material (-)', 'Roughness (Mannings n)', 'Diameter (m)'],
+    ]
+    materials_net_link_data.append(['Concrete pipe', 0.013, 0.3])
+    path_materials_net_link = os.path.join(st_path_to_output_folder, st_materials_net_link_file)
+    write_output_data_to_disk(path_materials_net_link, materials_net_link_data, ',')
 
     # Write surface materials file to disk.
     print("-> Writing surface materials file.")
@@ -1159,10 +1185,30 @@ def main(argv):
     path_materials_3d = os.path.join(st_path_to_output_folder, st_materials_3d_file)
     write_output_data_to_disk(path_materials_3d, materials_3d_data, ',')
 
+    # Write network junction initial conditions file.
+    print("-> Writing network junction initial conditions file.")
+    init_cond_net_junc_data = [
+        ['Id (-)','Water depth (m)'],
+    ]
+    for junc in cells_junction:
+        init_cond_net_junc_data.append([junc.id,0.0])
+    path_init_cond_net_junc = os.path.join(st_path_to_output_folder, st_init_cond_net_junc_file)
+    write_output_data_to_disk(path_init_cond_net_junc, init_cond_net_junc_data, ',')
+
+    # Write network link initial conditions file.
+    print("-> Writing network link initial conditions file.")
+    init_cond_net_link_data = [
+        ['Id (-)'],
+    ]
+    for link in cells_link:
+        init_cond_net_link_data.append([link.id])
+    path_init_cond_net_link = os.path.join(st_path_to_output_folder, st_init_cond_net_link_file)
+    write_output_data_to_disk(path_init_cond_net_link, init_cond_net_link_data, ',')
+
     # Write surface initial conditions file.
     print("-> Writing surface initial conditions file.")
     init_cond_2d_data = [
-        ['Cell id','Water depth (m)'],
+        ['Id (-)','Water depth (m)'],
     ]
     for cell in cells_2d:
         init_cond_2d_data.append([cell.id,0.0])
@@ -1178,17 +1224,27 @@ def main(argv):
         init_cond_3d_data.append([cell.id,cell.hydraulic_head])
     path_init_cond_3d = os.path.join(st_path_to_output_folder, st_init_cond_3d_file)
     write_output_data_to_disk(path_init_cond_3d, init_cond_3d_data, ',')
-    
+        
     # Write network boundary conditions file.
-    print("-> Writing network boundary conditions file.")
+    print("-> Writing network junction boundary conditions file.")
     bound_cond_net_data = [
-        ['Cell id','Type (-)'],
+        ['Id','Type (-)'],
     ]
     for cell_id, cell in enumerate(cells_junction):
         bound_cond_net_data.append([cell.id, cell.junc_type])
-    path_bound_cond_net = os.path.join(st_path_to_output_folder, st_bound_cond_net_junc_file) # st_bound_cond_net_file, FIX THIS
+    path_bound_cond_net = os.path.join(st_path_to_output_folder, st_bound_cond_net_junc_file)
     write_output_data_to_disk(path_bound_cond_net, bound_cond_net_data, ',')
-    
+
+    # Write network link boundry conditions file.
+    print("-> Writing network link boundry conditions file.")
+    bound_cond_net_link_data = [
+        ['Id (-)'],
+    ]
+    for link in cells_link:
+        bound_cond_net_link_data.append([link.id])
+    path_bound_cond_net_link = os.path.join(st_path_to_output_folder, st_bound_cond_net_link_file)
+    write_output_data_to_disk(path_bound_cond_net_link, bound_cond_net_link_data, ',')
+
     # Write surface boundary conditions file.
     print("-> Writing surface boundary conditions file.")
     bound_cond_2d_data = [
