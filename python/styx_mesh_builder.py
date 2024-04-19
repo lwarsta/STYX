@@ -267,11 +267,11 @@ def main(argv):
     
     # Set paths to raster files.
     print("-> Finding paths to raster files.")
-    paths_to_dem_files = glob.glob(os.path.join(path_to_dem_folder, '*'))
-    paths_to_landuse_files = glob.glob(os.path.join(path_to_landuse_folder, '*'))
-    paths_to_soiltype_top_files = glob.glob(os.path.join(path_to_soiltype_top_folder, '*'))
-    paths_to_soiltype_bottom_files = glob.glob(os.path.join(path_to_soiltype_bottom_folder, '*'))
-    paths_to_mask_files = glob.glob(os.path.join(path_to_mask_folder, '*'))
+    paths_to_dem_files = glob.glob(os.path.join(path_to_dem_folder, '*.tif'))
+    paths_to_landuse_files = glob.glob(os.path.join(path_to_landuse_folder, '*.tif'))
+    paths_to_soiltype_top_files = glob.glob(os.path.join(path_to_soiltype_top_folder, '*.tif'))
+    paths_to_soiltype_bottom_files = glob.glob(os.path.join(path_to_soiltype_bottom_folder, '*.tif'))
+    paths_to_mask_files = glob.glob(os.path.join(path_to_mask_folder, '*.tif'))
     
     # Load DEM files.
     print("-> Loading digital elevation map raster files.")
