@@ -471,11 +471,11 @@ def construct_styx_links(conduits_data):
     list: A list of GeoJSON-like mappings formatted for saving as GPKG.
     """
     links_styx = []
-    for conduit in conduits_data:
+    for ind, conduit in enumerate(conduits_data):
         link = {
-            'id': 0, #conduit['Name'],
-            'elev0': -1,  # Placeholder, update if elevation data becomes available
-            'elev1': -1,  # Placeholder, update if elevation data becomes available
+            'id': ind, #conduit['Name'],
+            'elev0': conduit['InOffset'],  # Placeholder, update if elevation data becomes available
+            'elev1': conduit['OutOffset'],  # Placeholder, update if elevation data becomes available
             'diameter': conduit['Geom1'],
             'roughness': conduit['Roughness'],
             'geometry': conduit['geometry'],
@@ -497,9 +497,10 @@ def construct_styx_junctions(junctions_data, outfalls_data):
     """
 
     junctions_styx = []
+    index = 0
     for junction in junctions_data:
         junction_styx = {
-            'id': 0, #junction['Name'],
+            'id': index, #junction['Name'],
             'diameter': 0.5,  # Default value, adjust as needed
             'depth': junction['MaxDepth'],
             'lid_open': 1,  # Assuming open lid for all junctions, adjust as needed
@@ -507,17 +508,19 @@ def construct_styx_junctions(junctions_data, outfalls_data):
             'geometry': junction['geometry'],
         }
         junctions_styx.append(junction_styx)
+        index += 1
 
     for outfall in outfalls_data:
         outfall_styx = {
-            'id': 0, #outfall['Name'],
+            'id': index, #outfall['Name'],
             'diameter': 0.5,  # Default value, adjust as needed
-            'depth': 0.0,  # outfall['Elevation']
+            'depth': 2.0,  # outfall['Elevation'], a depth is used here to make solution stable
             'lid_open': True,  # Assuming open lid for all outfalls, adjust as needed
             'type': 1,  # 1 for outfall
             'geometry': outfall['geometry'],
         }
         junctions_styx.append(outfall_styx)
+        index += 1
     
     return junctions_styx
 
