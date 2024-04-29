@@ -4,17 +4,10 @@
 JuncGeom::JuncGeom(int idNew, char geomTypeNew, std::vector<int> vertIndicesNew,
 	std::vector<Vertex*> vertPointersNew) 
 	: LinkJuncGeomBase(idNew, geomTypeNew, vertIndicesNew, vertPointersNew) {
-	diameter = 0.5;
-	area = algorithms.get_pi() * 0.25 * diameter * diameter;
-	open = 1;
-	
-	// Compute junction depth from top and bottom vertices.
-	if (vertPointers.size() == 2) {
-		depth = vertPointers.at(0)->z - vertPointers.at(1)->z;
-	}
-	else {
-		depth = 0.0;
-	}
+	diameter = 0.0;
+	area = 0.0;
+	open = 0;
+	depth = 0.0;
 }
 
 void JuncGeom::save_link(int id_lnk_end, int id_lnk, LinkGeom* link_geom, int id_jnc, JuncGeom* junc_geom)
@@ -26,7 +19,14 @@ void JuncGeom::save_link(int id_lnk_end, int id_lnk, LinkGeom* link_geom, int id
 	juncs.push_back(junc_geom);
 }
 
-void JuncGeom::compute_area()
-{
-	
+void JuncGeom::comp_geom_properties() {
+	area = algorithms.get_pi() * 0.25 * diameter * diameter;
+
+	// Compute junction depth from top and bottom vertices.
+	if (vertPointers.size() == 2) {
+		depth = vertPointers.at(0)->z - vertPointers.at(1)->z;
+	}
+	else {
+		depth = 0.0;
+	}
 }

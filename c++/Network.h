@@ -35,9 +35,12 @@ public:
                        std::vector<std::vector<std::string>> &tokens_link);
     void create_water_network_items();
     void init_water_network(Settings& settings,
-	                        std::vector<std::vector<std::string>>& materials_net,
-	                        std::vector<std::vector<std::string>>& bound_cond_net,
-						    std::vector<std::vector<std::string>>& init_cond_net);
+        std::vector<std::vector<std::string>>& materials_net_junc,
+        std::vector<std::vector<std::string>>& bound_cond_net_junc,
+        std::vector<std::vector<std::string>>& init_cond_net_junc,
+        std::vector<std::vector<std::string>>& materials_net_link,
+        std::vector<std::vector<std::string>>& bound_cond_net_link,
+        std::vector<std::vector<std::string>>& init_cond_net_link);
     std::vector<JuncGeom>* get_geom_juncs() { return &juncs_geom; }
     std::vector<JuncWater>* get_water_juncs(){ return &juncs_water; }
 };

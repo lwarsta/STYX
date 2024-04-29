@@ -54,24 +54,44 @@ class GridCell(GridComponent):
         self.junction_and_outlet = -1
 
 class Junction(GridComponent):
-    def __init__(self, geom_type, vert_indices, id, grid_connection, junc_type):
+    def __init__(self, geom_type, vert_indices, id, grid_connection, junc_type, depth, diameter, lid_type, init_water_depth):
         """
         """
         super().__init__(geom_type, vert_indices, id, grid_connection)
         self.junc_type = junc_type
-        self.depth = 0.0
-        self.diameter = 0.0
-        self.lid_type = 0
-        self.init_water_depth = 0.0
+        self.depth = depth
+        self.diameter = diameter
+        self.lid_type = lid_type
+        self.init_water_depth = init_water_depth
+
+    def __hash__(self):
+        """
+        """
+        return hash((self.diameter))
+
+    def __eq__(self, other):
+        """
+        """
+        return self.diameter == other.diameter
 
 class Link(GridComponent):
-    def __init__(self, geom_type, vert_indices, id, grid_connection):
+    def __init__(self, geom_type, vert_indices, id, grid_connection, diameter, roughness):
         """
         """
         super().__init__(geom_type, vert_indices, id, grid_connection)
         self.con_type = 0 # connection to junction or surface cell ?
-        self.diameter = 0.0
-        self.roughness = 0.0
+        self.diameter = diameter
+        self.roughness = roughness
+
+    def __hash__(self):
+        """
+        """
+        return hash((self.roughness, self.diameter))
+
+    def __eq__(self, other):
+        """
+        """
+        return self.roughness == other.roughness and self.diameter == other.diameter
 
 def avg(lst):
     """
@@ -719,8 +739,6 @@ def main(argv):
     paths_to_soiltype_bottom_files = glob.glob(os.path.join(path_to_soiltype_bottom_folder, '*.tif'))
     paths_to_mask_files = glob.glob(os.path.join(path_to_mask_folder, '*.tif'))
 
-
-
     # Load DEM files.
     print("-> Loading digital elevation map raster files.")
     dem_sources, dem_pixel_sizes = load_raster_folder(paths_to_dem_files)
@@ -766,8 +784,6 @@ def main(argv):
     with fiona.open(path_to_net_links) as src:
         for feature in src:
             feats_links.append(feature)
-
-
 
     # Generate structured meshes.
     if meshing_method == 1:
@@ -970,9 +986,23 @@ def main(argv):
                       "in system {}".format(network_id))
         # Extract type data field.
         junc_type = junction['properties']['type']
+        junc_depth = junction['properties']['depth']
+        junc_diameter = junction['properties']['diameter']
+        junc_lid_type = junction['properties']['lid_open']
         # 3 = VTK line
-        junctions.append( Junction(3, vert_indices, ind, con_cell_ind, junc_type) )
-
+        junctions.append(Junction(3, vert_indices, ind, con_cell_ind, 
+                         junc_type, junc_depth, junc_diameter, junc_lid_type,
+                         0.0))
+    # Set materials.
+    materials_junc = []
+    for junction in junctions:
+        if junction.diameter in materials_junc:
+            position = materials_junc.index(junction.diameter)
+        else:
+            position = len(materials_junc)
+            materials_junc.append(junction.diameter)
+        junction.material = position
+    
     # Create junction mesh output.
     print("-> Creating junction mesh output.")
     mesh_junction_lst = create_output_data(vertices_junction, junctions, 3)
@@ -1037,14 +1067,29 @@ def main(argv):
             ind += 1
         link_bound_conds.append(link_bound_conds_loc)
 
+    #unique_links = set(links)
+    #for link in unique_links:
+
     # Create vtk link cells.
     print("-> Creating vtk link cells.")
     links = [];
     for ind, link in enumerate(feats_links):
         vert_indices = [2 * ind, 2 * ind + 1]
         con_cell_ind = -1
+        link_diameter = link['properties']['diameter']
+        link_roughness = link['properties']['roughness']
         # 3 = VTK line
-        links.append( Link(3, vert_indices, ind, -1) ) # , con_cell_ind, 0
+        links.append( Link(3, vert_indices, ind, -1, link_diameter, link_roughness) )
+
+    # Set materials.
+    materials_link = []
+    for link in links:
+        if (link.diameter, link.roughness) in materials_link:
+            position = materials_link.index((link.diameter, link.roughness))
+        else:
+            position = len(materials_link)
+            materials_link.append( ((link.diameter, link.roughness)) )
+        link.material = position
 
     # Create link mesh output.
     print("-> Creating link mesh output.")
@@ -1197,16 +1242,18 @@ def main(argv):
     materials_net_junc_data = [
         ['Material (-)', 'Diameter (m)'],
     ]
-    materials_net_junc_data.append(['Concrete well', 0.5])
+    for material in materials_junc:
+        materials_net_junc_data.append(['Concrete well', material])
     path_materials_net_junc = os.path.join(st_path_to_output_folder, st_materials_net_junc_file)
     write_output_data_to_disk(path_materials_net_junc, materials_net_junc_data, ',')
 
     # Write network link materials file.
     print("-> Writing network link materials file.")
     materials_net_link_data = [
-        ['Material (-)', 'Roughness (Mannings n)', 'Diameter (m)'],
+        ['Material (-)', 'Diameter (m)', 'Roughness (Mannings n)'],
     ]
-    materials_net_link_data.append(['Concrete pipe', 0.013, 0.3])
+    for material in materials_link:
+        materials_net_link_data.append(['pipe', material[0], material[1]])
     path_materials_net_link = os.path.join(st_path_to_output_folder, st_materials_net_link_file)
     write_output_data_to_disk(path_materials_net_link, materials_net_link_data, ',')
 

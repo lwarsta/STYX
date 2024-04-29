@@ -17,6 +17,7 @@ public:
     void comp_flow_area_and_hydr_rad(double water_depth, double& flow_area, 
                                      double& hydr_rad);
     double get_mann_n() { return mann_n; }
+    void set_mann_n(double mann_n_new) { mann_n = mann_n_new; }
 };
 
 #endif

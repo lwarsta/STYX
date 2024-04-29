@@ -26,10 +26,11 @@ public:
 	std::vector<int> get_ids_lnk_end() { return ids_link_end; }
 	std::vector<int> get_ids_lnk() { return ids_link;  }
 	std::vector<int> get_ids_junc() { return ids_junc; }
-	void compute_area();
+	void comp_geom_properties();
 	double get_area(){return area;}
 	double get_depth() { return depth; }
 	double get_diameter() { return diameter; }
+	void set_diameter(double diameter_new) { diameter = diameter_new; }
 };
 
 #endif

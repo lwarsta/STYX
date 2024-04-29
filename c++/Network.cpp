@@ -522,22 +522,40 @@ void Network::create_water_network_items()
 
 void Network::init_water_network(
     Settings& settings,
-    std::vector<std::vector<std::string>>& materials_net,
+    std::vector<std::vector<std::string>>& materials_net_junc,
     std::vector<std::vector<std::string>>& bound_cond_net_junc,
-    std::vector<std::vector<std::string>>& init_cond_net)
+    std::vector<std::vector<std::string>>& init_cond_net_junc,
+    std::vector<std::vector<std::string>>& materials_new_link,
+    std::vector<std::vector<std::string>>& bound_cond_net_link,
+    std::vector<std::vector<std::string>>& init_cond_new_link)
 {
     for (size_t i = 0; i < juncs_water.size(); i++)
     {
         // Set material.
         JuncGeom* geom_junc = juncs_water.at(i).get_geom();
-        //int mat = geom_junc->getMaterial();
-        //cells_water.at(i).setMannN(atof(materials.at(mat + 1).at(0 + 1).c_str()));
-        //cells_water.at(i).setDeprStor(atof(materials.at(mat + 1).at(1 + 1).c_str()));
+        int mat = geom_junc->getMaterial();
+        geom_junc->set_diameter(atof(materials_net_junc.at(mat + 1).at(0 + 1).c_str()));
         // Set initial condition.
-        //int initInd = geomCell->getInitCondInd();
-        //cells_water.at(i).setWaterDepth(atof(init_cond.at(initInd + 1).at(0 + 1).c_str()));
+        int initInd = geom_junc->getInitCondInd();
         // Set boundary condition.
         int bound_ind = geom_junc->getBoundCondInd();
         juncs_water.at(i).set_type(atoi(bound_cond_net_junc.at(bound_ind + 1).at(0 + 1).c_str()));
+        // Compute geometric properties.
+        geom_junc->comp_geom_properties();
+    }
+
+    for (size_t i = 0; i < links_water.size(); i++)
+    {
+        // Set material.
+        LinkGeom* geom_link = links_water.at(i).get_geom();
+        int mat = geom_link->getMaterial();
+        geom_link->set_diameter(atof(materials_new_link.at(mat + 1).at(0 + 1).c_str()));
+        links_water.at(i).set_mann_n(atof(materials_new_link.at(mat + 1).at(1 + 1).c_str()));
+        // Set initial condition.
+        int initInd = geom_link->getInitCondInd();
+        // Set boundary condition.
+        int bound_ind = geom_link->getBoundCondInd();
+        // Compute geometric properties.
+        geom_link->comp_geom_properties();
     }
 }

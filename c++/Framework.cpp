@@ -105,10 +105,25 @@ int Framework::initialize(std::string pathToSettings)
     grid3d.build_grid(tokens3d);
 
     // Load network materials, initial conditions and boundary conditions.
-    // NOT IMPLEMENTED YET!
-    std::vector<std::vector<std::string>> materials_net;
-    //std::vector<std::vector<std::string>> bound_cond_net;
-    std::vector<std::vector<std::string>> init_cond_net;
+    std::vector<std::vector<std::string>> materials_net_junc;
+    materials_net_junc = fileIO.load_and_tokenize_file(
+        settings.get_str("materials_net_junc_path"), ',');
+
+    if (materials_net_junc.size() == 0)
+    {
+        std::cout << "-> net junc material file was not found or empty\n";
+        return 1;
+    }
+
+    std::vector<std::vector<std::string>> init_cond_net_junc;
+    init_cond_net_junc = fileIO.load_and_tokenize_file(
+        settings.get_str("init_cond_net_junc_path"), ',');
+
+    if (init_cond_net_junc.size() == 0)
+    {
+        std::cout << "-> net junc initial conditions file was not found or empty\n";
+        return 1;
+    }
 
     std::vector < std::vector<std::string> > bound_cond_net_junc;
     bound_cond_net_junc = fileIO.load_and_tokenize_file(
@@ -117,6 +132,36 @@ int Framework::initialize(std::string pathToSettings)
     if (bound_cond_net_junc.size() == 0)
     {
         std::cout << "-> net junc boundary condition file was not found or empty\n";
+        return 1;
+    }
+
+    std::vector<std::vector<std::string>> materials_net_link;
+    materials_net_link = fileIO.load_and_tokenize_file(
+        settings.get_str("materials_net_link_path"), ',');
+
+    if (materials_net_link.size() == 0)
+    {
+        std::cout << "-> net link material file was not found or empty\n";
+        return 1;
+    }
+
+    std::vector<std::vector<std::string>> init_cond_net_link;
+    init_cond_net_link = fileIO.load_and_tokenize_file(
+        settings.get_str("init_cond_net_link_path"), ',');
+
+    if (init_cond_net_link.size() == 0)
+    {
+        std::cout << "-> net link initial conditions file was not found or empty\n";
+        return 1;
+    }
+
+    std::vector < std::vector<std::string> > bound_cond_net_link;
+    bound_cond_net_link = fileIO.load_and_tokenize_file(
+        settings.get_str("bound_cond_net_link_path"), ',');
+
+    if (bound_cond_net_link.size() == 0)
+    {
+        std::cout << "-> net link boundary condition file was not found or empty\n";
         return 1;
     }
 
@@ -195,8 +240,9 @@ int Framework::initialize(std::string pathToSettings)
     // Create and initialize the water network.
     std::cout << "Creating and initializing the water network:\n";
     network.create_water_network_items();
-    network.init_water_network(settings, materials_net, bound_cond_net_junc,
-                               init_cond_net);
+    network.init_water_network(settings, materials_net_junc, bound_cond_net_junc,
+                               init_cond_net_junc, materials_net_link, 
+                               bound_cond_net_link, init_cond_net_link);
     
     // Create and initialize 3d water cells.
     std::cout << "Creating and initializing 3d water cells:\n";

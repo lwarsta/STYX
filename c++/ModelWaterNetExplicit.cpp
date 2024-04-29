@@ -213,6 +213,7 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 
 				// Compute flow direction, velocity and flux in a link.
 				LinkGeom* link_geom = links.at(j)->get_geom();
+				double slope_link = link_geom->get_slope();
 				std::vector<Vertex*> link_vrts = link_geom->getVertPointers();
 				double filled_area = 0.0;
 				double velocity = 0.0;
@@ -233,7 +234,8 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 						double filled_area = 0.0;
 						double hydraulic_rad = 0.0;
 						links.at(j)->comp_flow_area_and_hydr_rad(water_depth_lnk, filled_area, hydraulic_rad);
-						double velocity = 1.0 / mann_n * sqrt(slope) * pow(hydraulic_rad, 2.0 / 3.0);
+						//double velocity = 1.0 / mann_n * sqrt(slope) * pow(hydraulic_rad, 2.0 / 3.0);
+						double velocity = 1.0 / mann_n * sqrt(slope_link) * pow(hydraulic_rad, 2.0 / 3.0);
 						
 						// Currently flow velocity in a pipe is restricted to a given maximum velocity.
 						// This used to ensure stable computation. try to fix this later.
@@ -267,7 +269,8 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 						double filled_area = 0.0;
 						double hydraulic_rad = 0.0;
 						links.at(j)->comp_flow_area_and_hydr_rad(water_depth_lnk, filled_area, hydraulic_rad);
-						double velocity = -1.0 / mann_n * sqrt(-slope) * pow(hydraulic_rad, 2.0 / 3.0);
+						//double velocity = -1.0 / mann_n * sqrt(-slope) * pow(hydraulic_rad, 2.0 / 3.0);
+						double velocity = -1.0 / mann_n * sqrt(slope_link) * pow(hydraulic_rad, 2.0 / 3.0);
 						
 						// Currently flow velocity in a pipe is restricted to a given maximum velocity.
 						// This used to ensure stable computation. try to fix this later.
