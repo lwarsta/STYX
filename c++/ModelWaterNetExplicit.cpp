@@ -239,12 +239,12 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 						
 						// Currently flow velocity in a pipe is restricted to a given maximum velocity.
 						// This used to ensure stable computation. try to fix this later.
-						if (velocity > flow_vel_max) {
-							velocity = flow_vel_max;
-						}
-						else if (velocity < -flow_vel_max) {
-							velocity = -flow_vel_max;
-						}
+						//if (velocity > flow_vel_max) {
+						//	velocity = flow_vel_max;
+						//}
+						//else if (velocity < -flow_vel_max) {
+						//	velocity = -flow_vel_max;
+						//}
 
 						velocities.at(i).at(j) = velocity;
 						fluxes.at(i).at(j) = filled_area * velocity;
@@ -274,12 +274,12 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 						
 						// Currently flow velocity in a pipe is restricted to a given maximum velocity.
 						// This used to ensure stable computation. try to fix this later.
-						if (velocity > flow_vel_max) {
-							velocity = flow_vel_max;
-						}
-						else if (velocity < -flow_vel_max) {
-							velocity = -flow_vel_max;
-						}
+						//if (velocity > flow_vel_max) {
+						//	velocity = flow_vel_max;
+						//}
+						//else if (velocity < -flow_vel_max) {
+						//	velocity = -flow_vel_max;
+						//}
 
 						velocities.at(i).at(j) = velocity;
 						fluxes.at(i).at(j) = filled_area * velocity;
