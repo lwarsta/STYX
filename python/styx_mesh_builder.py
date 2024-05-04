@@ -19,7 +19,7 @@ from rtree import index
 import numpy as np
 import gmsh
 import time
-from copy import copy
+from copy import copy, deepcopy
 
 class Vertex:
     def __init__(self, id, x, y, z):
@@ -247,7 +247,7 @@ def printBanner():
     print("             Administrator: lassi@warsta.net.             ")
     print("----------------------------------------------------------")
 
-def generate_regular_mesh(nx, ny, lx, ly, x_distr, y_distr, grid_llc, angle_deg, bedrock_bottom_elev, dem_sources, layer_depths_soilt, layer_depths_soilb):
+def generate_regular_mesh(nx, ny, lx, ly, x_distr, y_distr, grid_llc, angle_deg, bedrock_bottom_elev, dem_sources, bedrock_sources, layer_depths_soilt, layer_depths_soilb):
     """
     """
     # Compute cell dimensions.
@@ -318,26 +318,32 @@ def generate_regular_mesh(nx, ny, lx, ly, x_distr, y_distr, grid_llc, angle_deg,
             con_cell_ind = ind_x + ind_y * nx
             cells_2d.append( GridCell(9, vert_indices, ind, con_cell_ind, 0) )
             ind += 1;
+
+    # Create vertices for the bottom of the top soil layer.
+    print("-> Creating the verticies for the bottom of the top soil layer.")
+    vertices_topsoil = deepcopy(vertices_2d)
+    for vertex in vertices_topsoil:
+        vertex.z -= 0.2 
     
-    # Create 3d subsurface vertices.
-    layer_depths = []
-    layer_depths.extend(layer_depths_soilt)
-    layer_depths.extend(layer_depths_soilb)
-    layer_depths.append(0.0)
-    nz = len(layer_depths)
-    dz_cum = 0.0
+    # Extract vertex elevations for the top of the bedrock layerfrom bedrock elevation map rasters.
+    print("-> Extracting vertex elevation values from bedrock elevation map rasters.")
+    vertices_bedrock = deepcopy(vertices_2d)
+    pixel_values = pick_raster_pixel_values(vertices_bedrock, bedrock_sources)
+    for vertex, pixel_value in zip(vertices_bedrock, pixel_values):
+        vertex.z = pixel_value
+        
+    # Extract cell vertex elevation values from bedrock elevation map rasters.
+    vertices_bottom = deepcopy(vertices_2d)
+    for vertex in vertices_bottom:
+        vertex.z = 0.0
+    
+    # Create vertices for the 3d mesh.
+    nz = 3 # UPDATE THIS HARDCODED VALUE
     vertices_3d = []
-    vertices_3d.extend(vertices_2d)
-    for layer_depth in layer_depths:
-        dz_cum += layer_depth
-        for vertex_2d in vertices_2d:
-            if layer_depth > 0.0:
-                z = vertex_2d.z - dz_cum
-            else:
-                z = bedrock_bottom_elev
-            vertex_3d = Vertex(ind, vertex_2d.x, vertex_2d.y, z)
-            vertices_3d.append(vertex_3d)
-            ind += 1
+    vertices_3d.extend(deepcopy(vertices_2d))
+    vertices_3d.extend(deepcopy(vertices_topsoil))
+    vertices_3d.extend(vertices_bedrock)
+    vertices_3d.extend(vertices_bottom)
     
     # Create 3d cells.
     print("-> Creating 3d subsurface cells.")
@@ -371,7 +377,7 @@ def generate_regular_mesh(nx, ny, lx, ly, x_distr, y_distr, grid_llc, angle_deg,
 
     return vertices_2d, cells_2d, vertices_3d, cells_3d
 
-def generate_irregular_mesh(lc, lc_ditch, dist_min_ditch, dist_max_ditch, num_pnts_per_curve, bedrock_bottom_elev, dem_sources, path_aoi, path_ditches, layer_depths_soilt, layer_depths_soilb):
+def generate_irregular_mesh(lc, lc_ditch, dist_min_ditch, dist_max_ditch, num_pnts_per_curve, bedrock_bottom_elev, dem_sources, bedrock_sources, path_aoi, path_ditches, layer_depths_soilt, layer_depths_soilb):
     """
     """
     # Settings.
@@ -387,17 +393,20 @@ def generate_irregular_mesh(lc, lc_ditch, dist_min_ditch, dist_max_ditch, num_pn
     # Load open ditch geometry.
     print("-> Loading open ditch geometry.")
     lines = []
-    with fiona.open(path_ditches) as src:
-        for idx, feature in enumerate(src):
-            geom = shape(feature["geometry"])
-            x_lst,y_lst = geom.coords.xy
-            first_vert = None
-            for x, y in zip(x_lst,y_lst):
-                if first_vert == None:
-                    first_vert = [x, y]
-                else:
-                    lines.append([first_vert, [x, y]])
-                    first_vert = [x, y]
+    if os.path.exists(path_ditches) and os.path.isfile(path_ditches):
+        with fiona.open(path_ditches) as src:
+            for idx, feature in enumerate(src):
+                geom = shape(feature["geometry"])
+                x_lst,y_lst = geom.coords.xy
+                first_vert = None
+                for x, y in zip(x_lst,y_lst):
+                    if first_vert == None:
+                        first_vert = [x, y]
+                    else:
+                        lines.append([first_vert, [x, y]])
+                        first_vert = [x, y]
+    else:
+        print("-> No ditch geometry file was found.")
 
     # Initialize gmsh and the mesh.
     print("-> Initializing gmsh and the mesh.")
@@ -537,25 +546,31 @@ def generate_irregular_mesh(lc, lc_ditch, dist_min_ditch, dist_max_ditch, num_pn
         cells_2d.append( GridCell(5, element, ind, ind, 0) )
         ind += 1;
     
-    # Create 3d subsurface vertices.
-    layer_depths = []
-    layer_depths.extend(layer_depths_soilt)
-    layer_depths.extend(layer_depths_soilb)
-    layer_depths.append(0.0)
-    nz = len(layer_depths)
-    dz_cum = 0.0
+    # Create vertices for the bottom of the top soil layer.
+    print("-> Creating the verticies for the bottom of the top soil layer.")
+    vertices_topsoil = deepcopy(vertices_2d)
+    for vertex in vertices_topsoil:
+        vertex.z -= 0.2 
+    
+    # Extract vertex elevations for the top of the bedrock layerfrom bedrock elevation map rasters.
+    print("-> Extracting vertex elevation values from bedrock elevation map rasters.")
+    vertices_bedrock = deepcopy(vertices_2d)
+    pixel_values = pick_raster_pixel_values(vertices_bedrock, bedrock_sources)
+    for vertex, pixel_value in zip(vertices_bedrock, pixel_values):
+        vertex.z = pixel_value
+        
+    # Extract cell vertex elevation values from bedrock elevation map rasters.
+    vertices_bottom = deepcopy(vertices_2d)
+    for vertex in vertices_bottom:
+        vertex.z = 0.0
+    
+    # Create vertices for the 3d mesh.
+    nz = 3 # UPDATE THIS HARDCODED VALUE
     vertices_3d = []
-    vertices_3d.extend(vertices_2d)
-    for layer_depth in layer_depths:
-        dz_cum += layer_depth
-        for vertex_2d in vertices_2d:
-            if layer_depth > 0.0:
-                z = vertex_2d.z - dz_cum
-            else:
-                z = bedrock_bottom_elev
-            vertex_3d = Vertex(ind, vertex_2d.x, vertex_2d.y, z)
-            vertices_3d.append(vertex_3d)
-            ind += 1
+    vertices_3d.extend(deepcopy(vertices_2d))
+    vertices_3d.extend(deepcopy(vertices_topsoil))
+    vertices_3d.extend(vertices_bedrock)
+    vertices_3d.extend(vertices_bottom)
     
     # Create 3d cells.
     print("-> Creating 3d subsurface cells.")
@@ -608,15 +623,16 @@ def main(argv):
     bedrock_bottom_elev = cfg.getfloat('input', 'bedrock_bottom_elev')
     path_aoi = cfg.get('input', 'path_aoi')
     path_ditches = cfg.get('input', 'path_ditches')
+    path_to_net_junctions = cfg.get('input', 'path_to_net_junctions')
+    path_to_net_links = cfg.get('input', 'path_to_net_links')
+    path_to_sinks = cfg.get('input', 'path_to_sinks')
+    path_to_mask_folder = cfg.get('input', 'path_to_mask_folder')
     path_to_dem_folder = cfg.get('input', 'path_to_dem_folder')
+    path_to_bedrock_elev_folder = cfg.get('input', 'path_to_bedrock_elev_folder')
     path_to_landuse_folder = cfg.get('input', 'path_to_landuse_folder')
     path_to_soiltype_top_folder = cfg.get('input', 'path_to_soiltype_top_folder')
     path_to_soiltype_bottom_folder = cfg.get('input', 'path_to_soiltype_bottom_folder')
-    path_to_mask_folder = cfg.get('input', 'path_to_mask_folder')
-    path_to_sinks = cfg.get('input', 'path_to_sinks') # CAN BE REMOVED
-    path_to_net_junctions = cfg.get('input', 'path_to_net_junctions')
-    path_to_net_links = cfg.get('input', 'path_to_net_links')
-    
+
     # Structured grid.
     nx = cfg.getint('input', 'nx')
     ny = cfg.getint('input', 'ny')
@@ -734,6 +750,7 @@ def main(argv):
     # Set paths to raster files.
     print("-> Finding paths to raster files.")
     paths_to_dem_files = glob.glob(os.path.join(path_to_dem_folder, '*.tif'))
+    paths_to_bedrock_files = glob.glob(os.path.join(path_to_bedrock_elev_folder, '*.tif'))
     paths_to_landuse_files = glob.glob(os.path.join(path_to_landuse_folder, '*.tif'))
     paths_to_soiltype_top_files = glob.glob(os.path.join(path_to_soiltype_top_folder, '*.tif'))
     paths_to_soiltype_bottom_files = glob.glob(os.path.join(path_to_soiltype_bottom_folder, '*.tif'))
@@ -743,7 +760,12 @@ def main(argv):
     print("-> Loading digital elevation map raster files.")
     dem_sources, dem_pixel_sizes = load_raster_folder(paths_to_dem_files)
     print ("-> Digital elevation map raster pixel size: {}".format(dem_pixel_sizes))
-    
+
+    # Load bedrock elevation model files.
+    print("-> Loading bedrock elevation map raster files.")
+    bedrock_sources, bedrock_pixel_sizes = load_raster_folder(paths_to_bedrock_files)
+    print ("-> Bedrock elevation map raster pixel size: {}".format(bedrock_pixel_sizes))
+
     # Load landuse files.
     print("-> Loading landuse raster files.")
     landuse_sources, landuse_pixel_sizes = load_raster_folder(paths_to_landuse_files)
@@ -767,9 +789,12 @@ def main(argv):
     # Load sinks.
     print("-> Loading sink features.")
     sinks = []
-    with fiona.open(path_to_sinks) as src:
-        for feature in src:
-            sinks.append(feature)
+    if os.path.exists(path_to_sinks) and os.path.isfile(path_to_sinks):
+        with fiona.open(path_to_sinks) as src:
+            for feature in src:
+                sinks.append(feature)
+    else:
+        print("-> No sink geometry file found.")
     
     # Load junctions.
     print("-> Loading junction features.")
@@ -790,7 +815,7 @@ def main(argv):
         print("-> Generating a regular mesh.")
         results = generate_regular_mesh(nx, ny, lx, ly, x_distr, y_distr, 
                                         grid_llc, angle_deg, bedrock_bottom_elev, 
-                                        dem_sources, layer_depths_soilt, 
+                                        dem_sources, bedrock_sources, layer_depths_soilt, 
                                         layer_depths_soilb)
         vertices_2d, cells_2d, vertices_3d, cells_3d = results
     # Generate unstructured meshes.
@@ -798,8 +823,8 @@ def main(argv):
         print("-> Generating an irregular mesh.")
         results = generate_irregular_mesh(lc, lc_ditch, dist_min_ditch, 
                                           dist_max_ditch, num_pnts_per_curve, 
-                                          bedrock_bottom_elev, dem_sources, 
-                                          path_aoi, path_ditches, 
+                                          bedrock_bottom_elev, dem_sources,
+                                          bedrock_sources, path_aoi, path_ditches, 
                                           layer_depths_soilt, layer_depths_soilb)
         vertices_2d, cells_2d, vertices_3d, cells_3d = results
     else:
@@ -856,17 +881,27 @@ def main(argv):
         surface_elevation = cells_2d[ind_2d].cp.z
         for ind_z in range(0, nz):
             ind_3d = ind_2d + ind_z * len(cells_2d)
-            depth = surface_elevation - cells_3d[ind_3d].cp.z
-            if depth <= 1.0:
+            
+            if ind_z == 0:
                 cells_3d[ind_3d].material = pixel_values_soil_top[ind_2d]
-            else:
+            elif ind_z == 1:
                 cells_3d[ind_3d].material = pixel_values_soil_bottom[ind_2d]
-            # TEMPORARY: SET TOP CELL SOIL TYPE TO IMPERMEABLE FOR CERTAIN LAND USE CLASSES.
-            if ind_z == 0 and cells_2d[ind_2d].material in [1, 2, 3, 11]:
-                cells_3d[ind_3d].material = 10
-            # Set land use of cells outside the mask as undefined.
+            else:
+                cells_3d[ind_3d].material = 10 # bedrock
             if cells_2d[ind_2d].mask == 0:
                 cells_3d[ind_3d].material = 0
+            
+            #depth = surface_elevation - cells_3d[ind_3d].cp.z
+            #if depth <= 1.0:
+            #    cells_3d[ind_3d].material = pixel_values_soil_top[ind_2d]
+            #else:
+            #    cells_3d[ind_3d].material = pixel_values_soil_bottom[ind_2d]
+            # TEMPORARY: SET TOP CELL SOIL TYPE TO IMPERMEABLE FOR CERTAIN LAND USE CLASSES.
+            #if ind_z == 0 and cells_2d[ind_2d].material in [1, 2, 3, 11]:
+            #    cells_3d[ind_3d].material = 10
+            # Set land use of cells outside the mask as undefined.
+            #if cells_2d[ind_2d].mask == 0:
+            #    cells_3d[ind_3d].material = 0
 
     # Create 3d mesh output.
     print("-> Creating 3d mesh output.")
@@ -1294,33 +1329,36 @@ def main(argv):
             'Heat conductivity multiplier [-]', 
             'Dispersivity trans. [m2]', 
             'Dispersivity long. [m2]'],
-        ['Undefined', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Unmapped', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Sphagnum Peat', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Fine Sand', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Coarse Sand', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Sand', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Gravel', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Fine Sand', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Fine Material Till', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Silty Sand', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Bedrock', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Sand Till', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Rocks', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Rubble', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Mud', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Mud Clay', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Muddy Silty Sand', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Muddy Fine Sand', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Muddy Sand', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Boulders', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Gravel Till', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Clay', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Weathered Bedrock', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Sedge Peat', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Fill', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Water', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
-        ['Peat Production Area', 0.00000000000, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01]
+        ['Undefined', 0.0, 0.0001, 0.01, 0.005, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Unmapped', 0.0, 0.0001, 0.01, 0.005, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Sphagnum Peat', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Fine Sand', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Coarse Sand', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Sand', 0.01, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Gravel', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Fine Sand', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Fine Material Till', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Silty Sand', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Bedrock', 0.0, 0.0001, 0.01, 0.005, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Sand Till', 0.001, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Rocks', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Rubble', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Mud', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Mud Clay', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Muddy Silty Sand', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Muddy Coarse Sand', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Muddy Fine Sand', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Muddy Sand', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Boulders', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Gravel Till', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Clay', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Weathered Bedrock', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Sedge Peat', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Fill', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Water', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Peat Production Area', 0.0, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Organic soil', 0.01, 0.0001, 0.307, 0.0197, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01],
+        ['Impermeable material', 0.0, 0.0001, 0.01, 0.005, 13.58, 1.8345, 1680, 0.84, 0.0029, 1, 0.1, 0.01]
     ]
     path_materials_3d = os.path.join(st_path_to_output_folder, st_materials_3d_file)
     write_output_data_to_disk(path_materials_3d, materials_3d_data, ',')

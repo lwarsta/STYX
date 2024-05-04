@@ -2,9 +2,16 @@ import sys
 import os
 import fiona
 from fiona.crs import from_epsg
-from shapely.geometry import mapping, Polygon, Point, LineString
+from shapely.geometry import shape, mapping, Polygon, MultiPolygon, Point, LineString
+from shapely.ops import unary_union
 import time
 import copy
+
+aoi_schema_styx = {
+    'geometry': 'Polygon',
+    'properties': {
+    }
+}
 
 subcatchments_schema = {
     'geometry': 'Polygon',
@@ -524,6 +531,35 @@ def construct_styx_junctions(junctions_data, outfalls_data):
     
     return junctions_styx
 
+def construct_aoi(features, buffer_distance=0.04):
+    """
+    Dissolves a list of subcatchment features into a single or multiple Area of Interest (AOI) polygons using Shapely,
+    with an optional step to remove small holes by applying a buffering technique.
+
+    Args:
+        features (list): A list of features, each represented as a dictionary with a 'geometry' key.
+        buffer_distance (float): The buffer distance used to remove small holes; positive values dilate, negative values erode.
+
+    Returns:
+        list: A list containing one or more feature dictionaries with the dissolved AOI geometry, with small holes removed.
+    """
+    # Convert feature geometries to Shapely geometries
+    geometries = [shape(feature['geometry']) for feature in features]
+
+    # Use unary_union to dissolve all geometries into one
+    dissolved_geom = unary_union(geometries)
+
+    # Apply buffer to fill small holes and then remove the buffer effect
+    cleaned_geom = dissolved_geom.buffer(buffer_distance).buffer(-buffer_distance)
+
+    # Check if the dissolved geometry is a MultiPolygon
+    if isinstance(cleaned_geom, MultiPolygon):
+        # If it is a MultiPolygon, return each Polygon as a separate feature
+        return [{'geometry': poly} for poly in cleaned_geom.geoms]
+    else:
+        # Otherwise, return the single geometry as a feature
+        return [{'geometry': cleaned_geom}]
+
 
 def write_to_gpkg(output_file, layer_name, schema, data, epsg_code, overwrite=False):
     """
@@ -552,14 +588,14 @@ def write_to_gpkg(output_file, layer_name, schema, data, epsg_code, overwrite=Fa
                 'properties': feature  # Use the remaining dictionary as the feature properties
             })
 
-def main(inp_file, crs, output_file):
+def main(inp_file, crs, buffer_distance, path_output_folder):
     """
     Main function to extract SWMM .inp file data and write it to GPKG file.
 
     Parameters:
     inp_file (str): Path to the SWMM .inp file.
     crs (str): Coordinate reference system for the output file.
-    output_file (str): Path to the output GPKG file.
+    path_output_folder (str): Path to the output folder.
     """
     start_time = time.time()
 
@@ -570,27 +606,35 @@ def main(inp_file, crs, output_file):
     raingages_data = extract_raingages(inp_file)
     styx_links_data = construct_styx_links(conduits_data)
     styx_junctions_data = construct_styx_junctions(junctions_data, outfalls_data)
+    styx_aoi = construct_aoi(subcatchments_data, buffer_distance=buffer_distance)
+    #print(styx_aoi)
+    
+    # Check if the destination directory exists, if not create it
+    if not os.path.exists(os.path.dirname(path_output_folder)):
+        os.makedirs(os.path.dirname(path_output_folder))
     
     # Write data to GPKG using fiona
-    write_to_gpkg(output_file, 'subcatchments', subcatchments_schema, subcatchments_data, crs, overwrite=True)
-    write_to_gpkg(output_file, 'junctions', junctions_schema, junctions_data, crs, overwrite=True)
-    write_to_gpkg(output_file, 'conduits', conduits_schema, conduits_data, crs, overwrite=True)
-    write_to_gpkg(output_file, 'outfalls', outfalls_schema, outfalls_data, crs, overwrite=True)
-    write_to_gpkg(output_file, 'raingages', raingages_schema, raingages_data, crs, overwrite=True)
-    write_to_gpkg(output_file, 'junctions_styx', junctions_schema_styx, styx_junctions_data, crs, overwrite=True)
-    write_to_gpkg(output_file, 'links_styx', links_schema_styx, styx_links_data, crs, overwrite=True)
+    write_to_gpkg(os.path.join(path_output_folder, 'subcatchments.gpkg'), 'subcatchments', subcatchments_schema, subcatchments_data, crs, overwrite=True)
+    write_to_gpkg(os.path.join(path_output_folder, 'junctions.gpkg'), 'junctions', junctions_schema, junctions_data, crs, overwrite=True)
+    write_to_gpkg(os.path.join(path_output_folder, 'conduits.gpkg'), 'conduits', conduits_schema, conduits_data, crs, overwrite=True)
+    write_to_gpkg(os.path.join(path_output_folder, 'outfalls.gpkg'), 'outfalls', outfalls_schema, outfalls_data, crs, overwrite=True)
+    write_to_gpkg(os.path.join(path_output_folder, 'raingages.gpkg'), 'raingages', raingages_schema, raingages_data, crs, overwrite=True)
+    write_to_gpkg(os.path.join(path_output_folder, 'junctions_styx.gpkg'), 'junctions_styx', junctions_schema_styx, styx_junctions_data, crs, overwrite=True)
+    write_to_gpkg(os.path.join(path_output_folder, 'links_styx.gpkg'), 'links_styx', links_schema_styx, styx_links_data, crs, overwrite=True)
+    write_to_gpkg(os.path.join(path_output_folder, 'aoi.gpkg'), 'aoi_styx', aoi_schema_styx, styx_aoi, crs, overwrite=True)
     
     end_time = time.time()
     print(f"Data extraction and GPKG file creation completed in {end_time - start_time} seconds.")
 
 if __name__ == '__main__':
     # Command line arguments
-    if len(sys.argv) < 4:
-        print("Usage: python script.py <inp_file> <crs> <output_file>")
+    if len(sys.argv) < 5:
+        print("Usage: python script.py <inp_file> <crs> <buffer_distance_m> <output_folder>")
         sys.exit(1)
 
     inp_file_path = sys.argv[1]
     crs = sys.argv[2]
-    output_file_path = sys.argv[3]
+    buffer_distance = float(sys.argv[3])
+    path_output_folder = sys.argv[4]
     
-    main(inp_file_path, crs, output_file_path)
+    main(inp_file_path, crs, buffer_distance, path_output_folder)

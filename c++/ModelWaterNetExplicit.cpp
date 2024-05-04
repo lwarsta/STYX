@@ -287,7 +287,7 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 				}
 			}
 		}
-		
+
 		// Assess CFL condition and time step length.
 		//u* dt / dx <= 1 -> dt = dx / u
 		double time_step_sub_new = std::numeric_limits<double>::max();

@@ -76,6 +76,46 @@ void CellWater3d::calcWatCont()
 	}
 }
 
+double CellWater3d::changeWatCont(double watContNew)
+{
+	if (watContRes > 0.0 && geom != 0 && watContSat > watContRes && n > 1.0 && alpha > 0.0)
+	{
+		if (watContNew < watContSat)
+		{
+			// New water content below residual water content.
+			double presHeadMax = 10.0;
+
+			if (watContNew <= watContRes)
+			{
+				presHead = -presHeadMax;
+				calcWatCont();
+			}
+			else
+			{
+				watCont = watContNew;
+				presHead = -pow(pow((watContSat - watContRes) / (watCont - watContRes), 1.0 / m) - 1.0, 1.0 / n) / alpha;
+
+				if (presHead < -presHeadMax)
+				{
+					presHead = -presHeadMax;
+					calcWatCont();
+				}
+			}
+
+			// Compute hydraulic head.
+			Vertex centerPoint = geom->getCentrePoint();
+			hydrHead = presHead + centerPoint.z;
+		}
+	}
+	else
+	{
+		std::cout << "-> Error in double CellSubWaterBase::changeWatCont(double dWatContNew)" << "\n";
+		std::cout << "watContRes: " << watContRes << ", watContSat: " << watContSat << ", n: " << n << ", alpha: " << alpha;
+	}
+
+	return watCont;
+}
+
 void CellWater3d::calcUnsatCond()
 {
 	// Calculate relative saturation ( 0 <= Sr <= 1 )

@@ -71,6 +71,7 @@ public:
     void calcFluxes();
     void calcFlowVel();
     void calcWatCont();
+    double changeWatCont(double watContNew);
     void setWatCont(double watContNew) {watCont = watContNew;}
     void calcDiffWatCap();
     double getRelSat();

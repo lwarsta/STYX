@@ -753,8 +753,11 @@ int Framework::run()
             for (size_t i = 0; i < cells_water_2d->size(); i++)
             {
                 CellGeom2d * geom =  cells_water_2d->at(i).getGeom();
-                waterVolume2d += cells_water_2d->at(i).getWaterDepth() *
-                    geom->getArea();
+
+                if (geom->getMaterial() != 0) {
+                    waterVolume2d += cells_water_2d->at(i).getWaterDepth() *
+                        geom->getArea();
+                }
             }
 
             // Compute water volume in the 3d grid.
@@ -763,8 +766,11 @@ int Framework::run()
             for (size_t i = 0; i < cells_water_3d->size(); i++)
             {
                 CellGeom3d * geom =  cells_water_3d->at(i).getGeom();
-                waterVolume3d += cells_water_3d->at(i).getWatCont() *
-                    geom->getVolume();
+
+                if (geom->getMaterial() != 0) {
+                    waterVolume3d += cells_water_3d->at(i).getWatCont() *
+                        geom->getVolume();
+                }
             }
 
             // Compute solute mass in the 2d grid.

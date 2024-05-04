@@ -1,9 +1,79 @@
 import os
+import sys
+import shutil
 from osgeo import gdal, ogr, osr
 import fiona
 from shapely.geometry import shape, Polygon, MultiPolygon
 from fiona.transform import transform_geom
 import math
+
+# Define mapping of land use codes
+mapping_land_use = {
+    0: 0,    # Empty
+    111: 1,  # Paved road
+    112: 10, # Non-paved road
+    120: 2,  # Building
+    121: 2,  # Building
+    130: 1,  # Other impermeable surface
+    211: 4,  # Field
+    212: 5,  # Other low vegetation
+    221: 6,  # Trees 2-10 m
+    222: 7,  # Trees 10-15 m
+    223: 8,  # Trees 15-20 m
+    224: 9,  # Trees >20 m
+    310: 3,  # Rock outcrop
+    410: 10, # Bare soil
+    510: 11, # Water
+    520: 11, # Sea
+}
+
+# Define mapping of soil type codes to local codes used by the model.
+mapping_soils = {
+    195602: 1,	  # Kartoittamaton (0)
+    195512: 2,	  # Saraturve (Ct) RT
+    195411: 3,	  # hieno Hieta (HHt) RT
+    195315: 4,	  # karkea Hieta (KHt) RT
+    195314: 5,	  # Hiekka (Hk) RT
+    195313: 6,	  # Sora (Sr) RT
+    1953142: 7,	  # hieno Hiekka (HHk) RT
+    195215: 8, 	  # Hienoainesmoreeni (HMr) RT
+    195412: 9, 	  # Hiesu (Hs) RT
+    195111: 10,	  # Kalliomaa (Ka) RT
+    195214: 11,	  # Hiekkamoreeni (Mr) RT
+    195312: 12,	  # Kiviä (Ki) RT
+    195112: 13,	  # Rakka (RaKa) RT
+    195511: 14,	  # Lieju (Lj) RT
+    19541321: 15, # Liejusavi (LjSa) RT
+    19541221: 16, # Liejuhiesu (LjHs) RT
+    19531521: 17, # liejuinen Hieta (karkea) (LjHt) RT
+    19541121: 18, # liejuinen hieno Hieta (LjHHt) RT
+    19531421: 19, # liejuinen Hiekka (LjHk) RT
+    195311: 20,	  # Lohkareita (Lo) RT
+    195213: 21,	  # Soramoreeni (SrMr) RT
+    195413: 22,	  # Savi (Sa) RT
+    195113: 23,	  # Rapakallio (RpKa) RT
+    195513: 24,	  # Rahkaturve (St) RT
+    195601: 25,	  # Täytemaa (Ta)
+    195603: 26,	  # Vesi (Ve)
+    195514: 27,	  # Turvetuotantoalue (Tu) RT
+}
+
+# Define mapping of local top soil type codes according to land use.
+remapping_top_soils = {
+    1: 29,  # Paved road
+    10: 5,  # Non-paved road
+    2: 29,  # Building
+    2: 29,  # Building
+    3: 29,  # Other impermeable surface
+    4: 28,  # Field
+    5: 28,  # Other low vegetation
+    6: 28,  # Trees 2-10 m
+    7: 28,  # Trees 10-15 m
+    8: 28,  # Trees 15-20 m
+    9: 28,  # Trees >20 m
+    3: 10,  # Rock outcrop
+    10: 5,  # Bare soil
+}
 
 def get_adjusted_extents(aoi_layer):
     """
@@ -301,108 +371,205 @@ def crop_raster(input_raster, output_raster, extents):
     ds = None
     print("Raster cropping completed successfully.")
 
-def main():
-    aoi_folder = 'C:\\Users\\lwlassi\\Downloads\\HSY\\input_aoi'
-    land_use_folder = 'C:\\Users\\lwlassi\\Downloads\\HSY\\input_land_use'
-    soil_types_folder = 'C:\\Users\\lwlassi\\Downloads\\HSY\\input_soil_types'
-    output_folder = 'C:\\Users\\lwlassi\\Downloads\\HSY\\output_land_use'
-    path_input_dem = 'C:\\Users\\lwlassi\\Downloads\\HSY\\dem_input\\L4132G.tif'
-    path_output_dem = os.path.join(output_folder, 'dem_raster.tif')
-    aoi_layer = os.path.join(aoi_folder, 'aoi_vallikallio_fixed_geometries.gpkg')
-    soil_types_gpkg = os.path.join(soil_types_folder, 'soil_types_gtk_20k.gpkg')
-    combined_gpkg = os.path.join(output_folder, 'combined.gpkg')
-    output_tif = os.path.join(output_folder, 'landuse_raster.tif')
-    output_soil_types_top_tif = os.path.join(output_folder, 'soil_types_top.tif')
-    output_soil_types_bottom_tif = os.path.join(output_folder, 'soil_types_bottom.tif')
-    output_mask_tif = os.path.join(output_folder, 'mask.tif')
-    remapped_tif = os.path.join(output_folder, 'remapped_landuse.tif')
-    remapped_soil_type_top_tif = os.path.join(output_folder, 'remapped_soil_type_top.tif')
-    remapped_soil_type_bottom_tif = os.path.join(output_folder, 'remapped_soil_type_bottom.tif')
+def adjust_raster_values(input_path_raster, input_path_raster_adjustment, output_path_raster, value_map):
+    """
+    Adjust raster values based on a mapping from a land use raster.
 
-    # Mapping of land use codes
-    mapping_land_use = {
-        0: 0,    # Empty
-        111: 1,  # Paved road
-        112: 10, # Non-paved road
-        120: 2,  # Building
-        121: 2,  # Building
-        130: 3,  # Other impermeable surface
-        211: 4,  # Field
-        212: 5,  # Other low vegetation
-        221: 6,  # Trees 2-10 m
-        222: 7,  # Trees 10-15 m
-        223: 8,  # Trees 15-20 m
-        224: 9,  # Trees >20 m
-        310: 3,  # Rock outcrop
-        410: 10, # Bare soil
-        510: 11, # Water
-        520: 11, # Sea
-    }
+    Args:
+        input_path_raster (str): Path to the input raster file representing soil types.
+        input_path_raster_adjustment (str): Path to the land use raster used for adjustments.
+        output_path_raster (str): Path where the adjusted raster will be saved.
+        value_map (dict): A dictionary mapping land use values (keys) to soil type values (values).
+
+    Returns:
+        None: Outputs a new raster with adjusted values.
+    """
+
+    # Open the input soil type raster
+    src = gdal.Open(input_path_raster)
+    soil_band = src.GetRasterBand(1)
+    soil_data = soil_band.ReadAsArray()
+
+    # Open the adjustment raster
+    src_adjust = gdal.Open(input_path_raster_adjustment)
+    adjust_band = src_adjust.GetRasterBand(1)
+    adjustment_data = adjust_band.ReadAsArray()
+
+    # Ensure both rasters have the same shape
+    if adjustment_data.shape != soil_data.shape:
+        print("Error: Rasters do not match in size.")
+        return
+
+    # Modify the soil raster based on the adjustment raster and the value map
+    for land_use_value, soil_type_value in value_map.items():
+        mask = (adjustment_data == land_use_value)
+        soil_data[mask] = soil_type_value
+
+    # Create the output raster
+    driver = gdal.GetDriverByName('GTiff')
+    out_ds = driver.Create(output_path_raster, src.RasterXSize, src.RasterYSize, 1, gdal.GDT_Int32)
+    out_band = out_ds.GetRasterBand(1)
+
+    # Set GeoTransform and Projection
+    out_ds.SetGeoTransform(src.GetGeoTransform())
+    out_ds.SetProjection(src.GetProjection())
+
+    # Write the modified data and close the datasets
+    out_band.WriteArray(soil_data)
+    out_band.FlushCache()
+    out_band = None
+    out_ds = None
+    src = None
+    src_adjust = None
+
+def copy_file(source_path, destination_path):
+    """
+    Copies a file from a source path to a destination path and creates the destination folder if it does not exist.
+
+    Args:
+        source_path (str): Path to the source file to be copied.
+        destination_path (str): Path where the copied file should be placed.
+
+    Returns:
+        None: The function does not return a value but performs the file copy operation and ensures the destination directory exists.
+
+    Raises:
+        OSError: An error occurred creating the directory or copying the file.
+    """
+    # Check if the destination directory exists, if not create it
+    if not os.path.exists(os.path.dirname(destination_path)):
+        os.makedirs(os.path.dirname(destination_path))
     
-    mapping_soils = {
-        195602: 0,	  # Kartoittamaton (0)
-        195512: 1,	  # Saraturve (Ct) RT
-        195411: 2,	  # hieno Hieta (HHt) RT
-        195315: 3,	  # karkea Hieta (KHt) RT
-        195314: 4,	  # Hiekka (Hk) RT
-        195313: 5,	  # Sora (Sr) RT
-        1953142: 6,	  # hieno Hiekka (HHk) RT
-        195215: 7, 	  # Hienoainesmoreeni (HMr) RT
-        195412: 8, 	  # Hiesu (Hs) RT
-        195111: 9,	  # Kalliomaa (Ka) RT
-        195214: 10,	  # Hiekkamoreeni (Mr) RT
-        195312: 11,	  # Kiviä (Ki) RT
-        195112: 12,	  # Rakka (RaKa) RT
-        195511: 13,	  # Lieju (Lj) RT
-        19541321: 14, # Liejusavi (LjSa) RT
-        19541221: 15, # Liejuhiesu (LjHs) RT
-        19531521: 16, # liejuinen Hieta (karkea) (LjHt) RT
-        19541121: 17, # liejuinen hieno Hieta (LjHHt) RT
-        19531421: 18, # liejuinen Hiekka (LjHk) RT
-        195311: 19,	  # Lohkareita (Lo) RT
-        195213: 20,	  # Soramoreeni (SrMr) RT
-        195413: 21,	  # Savi (Sa) RT
-        195113: 22,	  # Rapakallio (RpKa) RT
-        195513: 23,	  # Rahkaturve (St) RT
-        195601: 24,	  # Täytemaa (Ta)
-        195603: 25,	  # Vesi (Ve)
-        195514: 26,	  # Turvetuotantoalue (Tu) RT
-    }
+    # Copy the file
+    shutil.copy(source_path, destination_path)
+
+def main(
+        path_input_file_aoi, 
+        path_input_folder_land_use, 
+        path_input_file_soil_types, 
+        path_input_file_dem, 
+        path_input_file_bedrock, 
+        path_output_folder_tmp,
+        path_output_final_mask,
+        path_output_final_dem,
+        path_output_final_bedrock_elev,
+        path_output_final_land_use,
+        path_output_final_soil_type_top,
+        path_output_final_soil_type_bottom):
+    """
+    """
     
+    # Create the temporary work directory if it does not exist.
+    if not os.path.exists(os.path.dirname(path_output_folder_tmp)):
+        os.makedirs(os.path.dirname(path_output_folder_tmp))
+    
+    # Create output paths.
+    path_output_file_dem = os.path.join(path_output_folder_tmp, 'dem.tif')
+    path_output_file_bedrock_elev = os.path.join(path_output_folder_tmp, 'bedrock_elevation.tif')
+    path_output_file_land_use_combined = os.path.join(path_output_folder_tmp, 'land_use_combined.gpkg')
+    path_output_file_land_use = os.path.join(path_output_folder_tmp, 'land_use.tif')
+    path_output_file_soil_types_top = os.path.join(path_output_folder_tmp, 'soil_types_top.tif')
+    path_output_file_soil_types_bottom = os.path.join(path_output_folder_tmp, 'soil_types_bottom.tif')
+    path_output_file_mask = os.path.join(path_output_folder_tmp, 'mask.tif')
+    path_output_file_land_use_remapped = os.path.join(path_output_folder_tmp, 'land_use_remapped.tif')
+    path_output_file_soil_types_top_remapped = os.path.join(path_output_folder_tmp, 'soil_types_top_remapped.tif')
+    path_output_file_soil_types_bottom_remapped = os.path.join(path_output_folder_tmp, 'soil_types_bottom_remapped.tif')
+    path_output_file_soil_types_top_remapped_land_use = os.path.join(path_output_folder_tmp, 'soil_types_top_remapped_with_landuse.tif')
+        
     # Get adjusted extents.
-    extents = get_adjusted_extents(aoi_layer)
-    print(extents)
+    extents = get_adjusted_extents(path_input_file_aoi)
     
     # Rasterize a mask layer.
-    rasterize_vector(aoi_layer, output_mask_tif, extents, 'xxx')
+    rasterize_vector(path_input_file_aoi, path_output_file_mask, extents, 'xxx')
     
     # Crop the elevation model.
-    crop_raster(path_input_dem, path_output_dem, extents)
+    crop_raster(path_input_file_dem, path_output_file_dem, extents)
+
+    # Crop the bedrock elevation model.
+    crop_raster(path_input_file_bedrock, path_output_file_bedrock_elev, extents)
     
     # Process each land use file
-    for file_name in os.listdir(land_use_folder):
+    for file_name in os.listdir(path_input_folder_land_use):
         print(file_name)
         if file_name.endswith('.gpkg'):
-            input_file = os.path.join(land_use_folder, file_name)
-            output_file = os.path.join(output_folder, 'clipped_' + file_name)
-            cut_to_aoi(input_file, extents, output_file) # aoi_layer
+            input_file = os.path.join(path_input_folder_land_use, file_name)
+            output_file = os.path.join(path_output_folder_tmp, 'clipped_' + file_name)
+            cut_to_aoi(input_file, extents, output_file)
     
     # Combine clipped land use files
-    merge_layers(output_folder, combined_gpkg, 'combined_land_use')
+    merge_layers(path_output_folder_tmp, path_output_file_land_use_combined, 'combined_land_use')
     
     # Rasterize the combined land use file
-    rasterize_vector(combined_gpkg, output_tif, extents, 'koodi')
+    rasterize_vector(path_output_file_land_use_combined, path_output_file_land_use, extents, 'koodi')
 
     # Remap raster land use values
-    remap_values(output_tif, remapped_tif, mapping_land_use)
+    remap_values(path_output_file_land_use, path_output_file_land_use_remapped, mapping_land_use)
     
     # Rasterize soil types.
-    rasterize_vector(soil_types_gpkg, output_soil_types_top_tif, extents, 'PINTAMAALAJI_KOODI')
-    rasterize_vector(soil_types_gpkg, output_soil_types_bottom_tif, extents, 'POHJAMAALAJI_KOODI')
+    rasterize_vector(path_input_file_soil_types, path_output_file_soil_types_top, extents, 'PINTAMAALAJI_KOODI')
+    rasterize_vector(path_input_file_soil_types, path_output_file_soil_types_bottom, extents, 'POHJAMAALAJI_KOODI')
     
     # Remap raster soil type values
-    remap_values(output_soil_types_top_tif, remapped_soil_type_top_tif, mapping_soils)
-    remap_values(output_soil_types_bottom_tif, remapped_soil_type_bottom_tif, mapping_soils)
+    remap_values(path_output_file_soil_types_top, path_output_file_soil_types_top_remapped, mapping_soils)
+    remap_values(path_output_file_soil_types_bottom, path_output_file_soil_types_bottom_remapped, mapping_soils)
+    
+    # Remap top soil type values to take into account impermeable areas.
+    adjust_raster_values(path_output_file_soil_types_top_remapped, 
+                         path_output_file_land_use_remapped, 
+                         path_output_file_soil_types_top_remapped_land_use, 
+                         remapping_top_soils)
+    
+    # Copy the files into final directories.
+    copy_file(path_output_file_mask, path_output_final_mask)
+    copy_file(path_output_file_dem, path_output_final_dem)
+    copy_file(path_output_file_bedrock_elev, path_output_final_bedrock_elev)
+    copy_file(path_output_file_land_use_remapped, path_output_final_land_use)
+    copy_file(path_output_file_soil_types_top_remapped_land_use, path_output_final_soil_type_top)
+    copy_file(path_output_file_soil_types_bottom_remapped, path_output_final_soil_type_bottom)
 
 if __name__ == '__main__':
-    main()
+    # Command line arguments
+    if len(sys.argv) != 13:
+        print("Usage: python script.py "
+              "<path_input_file_aoi> "
+              "<path_input_folder_land_use> "
+              "<path_input_file_soil_types> "
+              "<path_input_file_dem> "
+              "<path_input_file_bedrock> "
+              "<path_output_folder_tmp> "
+              "<path_output_file_mask> "
+              "<path_output_file_dem> "
+              "<path_output_file_bedrock_elev> "
+              "<path_output_file_land_use> "
+              "<path_output_file_soil_type_top> "
+              "<path_output_file_soil_type_bottom>")
+        sys.exit(1)
+    
+    # Extract input and output paths.
+    path_input_file_aoi = sys.argv[1]
+    path_input_folder_land_use = sys.argv[2]
+    path_input_file_soil_types = sys.argv[3]
+    path_input_file_dem = sys.argv[4]
+    path_input_file_bedrock = sys.argv[5]
+    path_output_folder_tmp = sys.argv[6]
+    path_output_final_mask = sys.argv[7]
+    path_output_final_dem = sys.argv[8]
+    path_output_final_bedrock_elev = sys.argv[9]
+    path_output_final_land_use = sys.argv[10]
+    path_output_final_soil_type_top = sys.argv[11]
+    path_output_final_soil_type_bottom = sys.argv[12]
+    
+    main(
+        path_input_file_aoi, 
+        path_input_folder_land_use, 
+        path_input_file_soil_types, 
+        path_input_file_dem, 
+        path_input_file_bedrock, 
+        path_output_folder_tmp,
+        path_output_final_mask,
+        path_output_final_dem,
+        path_output_final_bedrock_elev,
+        path_output_final_land_use,
+        path_output_final_soil_type_top,
+        path_output_final_soil_type_bottom
+    )

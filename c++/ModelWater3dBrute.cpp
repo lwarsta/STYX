@@ -45,11 +45,13 @@ void ModelWater3dBrute::preprocess(Grid2d &grid2d, Grid3d &grid3d)
             double fluxInfExf = 0.0;
             if (waterCells3d->at(i).getPresHead() < 0.0 && hydrHeadSurf > waterCells3d->at(i).getHydrHead())
             {
+                
                 // Compute flux from surface domain to subsurface domain.
-                fluxInfExf = waterCells3d->at(i).getCondSat() * geom2d->getArea() * (hydrHeadSurf - waterCells3d->at(i).getHydrHead()) / distance;
+                fluxInfExf = waterCells3d->at(i).getCondUnsat() * geom2d->getArea() * (hydrHeadSurf - waterCells3d->at(i).getHydrHead()) / distance;
 
                 // Check that infiltrating water fits into the available pore space.
                 double emptySpace = (waterCells3d->at(i).getWatContSat() - waterCells3d->at(i).getWatCont()) * geom3d->getVolume();
+
                 if (emptySpace < 0.0)
                 {
                     emptySpace = 0.0;
@@ -64,37 +66,54 @@ void ModelWater3dBrute::preprocess(Grid2d &grid2d, Grid3d &grid3d)
                 {
                     fluxInfExf = waterDepth * geom2d->getArea() / timeStep;
                 }
+
+                // Add water to the cell.
+                double watCont = waterCells3d->at(i).getWatCont();
+                double watContNew = (watCont * geom3d->getVolume() + fluxInfExf * timeStep) / geom3d->getVolume();
+                double watContResult = waterCells3d->at(i).changeWatCont(watContNew);
+                fluxInfExf = (watContResult - watCont) * geom3d->getVolume() / timeStep;
+                
             }
+            
             // Exfiltration. THE DRY END WATER CONTENT COULD BE PRECOMPUTED IN INITIALIZATION PHASE?
             else if (waterCells3d->at(i).getPresHead() > 0.0 && hydrHeadSurf < waterCells3d->at(i).getHydrHead())
             {
+                
                 // Compute flux from subsurface domain to surface domain.
                 fluxInfExf = waterCells3d->at(i).getCondUnsat() * geom2d->getArea() * (hydrHeadSurf - waterCells3d->at(i).getHydrHead()) / distance;
 
-                // Cap the exfiltration flux to the available water volume.
+                // Compute freely available water.
                 double watCont = waterCells3d->at(i).getWatCont();
-
-                // Set the freely available water to empty at a suction of 1 m.
                 double hydrHeadNew = centre3d.z - 1.0;
                 waterCells3d->at(i).setHydrHead(hydrHeadNew);
                 waterCells3d->at(i).calcPresHead();
                 waterCells3d->at(i).calcWatCont();
                 double watContDry = waterCells3d->at(i).getWatCont();
                 double soilWatVol = (watCont - watContDry) * geom3d->getVolume();
-                if (soilWatVol < 0.0)
-                {
-                    soilWatVol = 0.0;
-                }
-                if (-fluxInfExf * timeStep > soilWatVol)
-                {
-                    fluxInfExf = -soilWatVol / timeStep;
-                }
 
                 // Restore old hydraulic and pressure head values and recompute water content values.
                 waterCells3d->at(i).setHydrHead(waterCells3d->at(i).getHydrHeadOld());
                 waterCells3d->at(i).calcPresHead();
                 waterCells3d->at(i).calcWatCont(); // Probably not needed
+
+                // Constrain exfiltration to the freely available water.
+                if (soilWatVol < 0.0)
+                {
+                    soilWatVol = 0.0;
+                }
+
+                if (-fluxInfExf * timeStep > soilWatVol)
+                {
+                    fluxInfExf = -soilWatVol / timeStep;
+                }
+
+                // Remove water from the cell.
+                double watContNew = (watCont * geom3d->getVolume() + fluxInfExf * timeStep) / geom3d->getVolume();
+                double watContResult = waterCells3d->at(i).changeWatCont(watContNew);
+                fluxInfExf = (watContResult - watCont) * geom3d->getVolume() / timeStep;
             }
+            
+            waterCells3d->at(i).swap();
             waterCells3d->at(i).setFluxInf(fluxInfExf);
         }
 	}
@@ -162,8 +181,8 @@ void ModelWater3dBrute::iterate(Grid2d &grid2d, Grid3d &grid3d)
                 waterCells3d->at(i).setDrainVol(0.0);
             }
 
-            // Include infiltration/exfiltration flux.
-            numerator += waterCells3d->at(i).getFluxInf();
+            // Include infiltration/exfiltration flux. - THIS IS TEMPORARY SET OFF WHEN TESTING EXPLICIT INFILTRATION
+            //numerator += waterCells3d->at(i).getFluxInf();
             waterCells3d->at(i).setInfVol(waterCells3d->at(i).getFluxInf() * timeStep);
 
             // Include evapotranspiration flux.
@@ -194,6 +213,8 @@ void ModelWater3dBrute::iterate(Grid2d &grid2d, Grid3d &grid3d)
 		}
 		iterCount++;
 	} while (iterDev > iterCutThresh && iterCount < iterStop);
+    
+    //std::cout << "iterDev: " << iterDev << ", iterCount: " << iterCount << "\n";
 }
 
 void ModelWater3dBrute::postprocess(Grid2d &grid2d, Grid3d &grid3d)
