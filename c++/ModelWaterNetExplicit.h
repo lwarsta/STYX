@@ -29,6 +29,7 @@ private:
     double thresh_left_bis; // should be zero
     double thresh_right_bis;
     double flow_vel_max;
+    int num_of_steps;
 };
 
 #endif

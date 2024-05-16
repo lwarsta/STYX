@@ -11,14 +11,15 @@ void ModelWaterNetExplicit::configure(int iter_stop_new, double iter_cut_thresh_
 	iter_stop_bis = iter_stop_bis_new;
 	thresh_left_bis = thresh_left_bis_new;
 	thresh_right_bis = thresh_right_bis_new;
-	sub_time_step = 1.0; // Get this to settings
-	flow_vel_max = 1.0; // Get this to settings
+	flow_vel_max = 1.0; // Get this from settings, this is not used currently
+	sub_time_step = 1.0; // Get this from settings.
+	num_of_steps = int(time_step / sub_time_step);
 }
 
 void ModelWaterNetExplicit::run(Grid2d& grid2d, Network& network)
 {
 	// Imrpove the sub time step approach taken below.
-	for (int i = 0; i < (int)time_step; i++) {
+	for (int i = 0; i < num_of_steps; i++) {
 		preprocess(grid2d, network);
 		iterate(grid2d, network);
 		postprocess(grid2d, network);
@@ -295,8 +296,8 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 		for (int i = 0; i < velocities.size(); i++) {
 			for (int j = 0; j < velocities.at(i).size(); j++) {
 				if (fabs(velocities.at(i).at(j)) > 0.0 &&
-					0.075 * distances.at(i).at(j) / fabs(velocities.at(i).at(j)) < time_step_sub_new) {
-					time_step_sub_new = 0.075 * distances.at(i).at(j) / fabs(velocities.at(i).at(j));
+					/*0.075 **/ distances.at(i).at(j) / fabs(velocities.at(i).at(j)) < time_step_sub_new) {
+					time_step_sub_new = /*0.075 **/ distances.at(i).at(j) / fabs(velocities.at(i).at(j));
 				}
 			}
 		}
@@ -314,10 +315,13 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 		double error_thresh = 0.000001; // Get this constant from settings
 		int iterations_max = 1000; // Get this constant from settings
 		int iterations = 0;
+		double water_depth_min_thresh = -0.1;
+		double water_depth_min;
 
 		do {
 			// Compute change in water volumes.
 			double sys_water_volume_new = 0.0;
+			water_depth_min = 0.0;
 
 			for (int i = 0; i < water_juncs->size(); i++) {
 				double vol_water_change = 0.0;
@@ -330,18 +334,27 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 				double depth_water_old = water_juncs->at(i).get_water_depth_old();
 				water_juncs->at(i).set_water_depth(depth_water_old + vol_water_change / junc_geom->get_area());
 				sys_water_volume_new += water_juncs->at(i).get_water_depth() * junc_geom->get_area();
+
+				if (water_juncs->at(i).get_water_depth() < water_depth_min) {
+					water_depth_min = water_juncs->at(i).get_water_depth();
+				}
 			}
 
 			// Decrease time step to decrease error.
 			volume_error = fabs(sys_water_volume_new - sys_water_volume);
 
-			if (volume_error > error_thresh) {
+			if (volume_error > error_thresh || water_depth_min < water_depth_min_thresh) {
 				time_step_sub_new *= 0.5;
 			}
 
 			iterations++;
 
-		} while (volume_error > error_thresh && iterations < iterations_max);
+		} while ((volume_error > error_thresh || water_depth_min < water_depth_min_thresh) && iterations < iterations_max);
+
+		//std::cout << "water_depth_min: " << water_depth_min << "\n";
+		//std::cout << "iterations: " << iterations << "\n";
+		//std::cout << "volume_error: " << volume_error << "\n";
+		//std::cout << "time_step_sub_new: " << time_step_sub_new << "\n";
 
 		// Swap new water depths to old water depths.
 		for (int i = 0; i < water_juncs->size(); i++) {
@@ -349,6 +362,7 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 		}
 				
 		time_loc += time_step_sub_new;
+		//std::cout << "time_step_sub_new: " << time_step_sub_new << "\n";
 
 	} while (time_loc < time_step);
 }
@@ -387,13 +401,24 @@ void ModelWaterNetExplicit::postprocess(Grid2d& grid2d, Network& network)
 			// Update water depths in the junction and overland cell.
 			if (geom_cell != 0 && junc_water_depth > junc_depth)
 			{
+				
+				//double cell_area = geom_cell->getArea();
+				//double junc_water_volume = (junc_water_depth - junc_depth) * junc_area;
+				//cell_water_depth += junc_water_volume / cell_area;
+				//junc_water_depth = junc_depth;
+				//water_juncs->at(i).set_water_depth(junc_water_depth); // Comment out to cut exchange of water between surface
+				//water_juncs->at(i).swap();
+				//water_cells->at(grid_conn).setWaterDepth(cell_water_depth); // Comment out to cut exchange of water between surface
+				//water_cells->at(grid_conn).swap();
+				
 				double cell_area = geom_cell->getArea();
+				double cell_water_vol = cell_water_depth * cell_area;
 				double junc_water_volume = (junc_water_depth - junc_depth) * junc_area;
-				cell_water_depth += junc_water_volume / cell_area;
+				double cell_water_vol_new = cell_water_vol + junc_water_volume;
 				junc_water_depth = junc_depth;
 				water_juncs->at(i).set_water_depth(junc_water_depth); // Comment out to cut exchange of water between surface
 				water_juncs->at(i).swap();
-				water_cells->at(grid_conn).setWaterDepth(cell_water_depth); // Comment out to cut exchange of water between surface
+				water_cells->at(grid_conn).setWaterDepth(cell_water_vol_new / cell_area);
 				water_cells->at(grid_conn).swap();
 			}
 		}
