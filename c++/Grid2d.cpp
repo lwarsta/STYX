@@ -347,6 +347,10 @@ void Grid2d::init_water_cells(
         int mat = geomCell->getMaterial();
         cells_water.at(i).setMannN(atof(materials.at(mat + 1).at(0 + 1).c_str()));
         cells_water.at(i).setDeprStor(atof(materials.at(mat + 1).at(1 + 1).c_str()));
+        cells_water.at(i).set_up_stor_thresh(atof(materials.at(mat + 1).at(2 + 1).c_str()));
+        cells_water.at(i).set_evap_frac(atof(materials.at(mat + 1).at(3 + 1).c_str()));
+        cells_water.at(i).set_crop_factor(atof(materials.at(mat + 1).at(4 + 1).c_str()));
+        cells_water.at(i).set_root_depth(atof(materials.at(mat + 1).at(5 + 1).c_str()));
         // Set initial condition.
         int initInd = geomCell->getInitCondInd();
         cells_water.at(i).setWaterDepth(atof(init_cond.at(initInd + 1).at(0 + 1).c_str()));

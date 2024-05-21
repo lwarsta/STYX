@@ -417,7 +417,8 @@ int Framework::run()
 
     double sim_time = 0.0; // this was changed from int to double
 	double precipVolCum = 0.0;
-	double evapVolCum = 0.0;
+	double evap_vol_cum = 0.0;
+    double transp_vol_cum = 0.0;
 	double infWatCum = 0.0;
     double drainVolCum = 0.0;
     double drainVolCum5min = 0.0;
@@ -448,11 +449,13 @@ int Framework::run()
     header.push_back("pressure head [m]");
     header.push_back("water content [m3/m3]");
     header.push_back("network water volume [m3]");
+    header.push_back("upper storage water volume [m3]");
     header.push_back("surface water volume [m3]");
     header.push_back("subsurface water volume [m3]");
     header.push_back("precipitation cum. [m3]");
     header.push_back("Outfall cum. [m3]");
     header.push_back("evaporation cum. [m3]");
+    header.push_back("transpiration cum. [m3]");
     header.push_back("water infiltration cum. [m3]");
     header.push_back("drain discharge cum. [m3]");
     header.push_back("drain discharge cum. [l/5 min]");
@@ -483,7 +486,7 @@ int Framework::run()
         double pet = atmosControl.get_pet();
         double airTemp = atmosControl.get_air_temp();
 
-        // Add precipitation on the overland domain.
+        // Add precipitation to the overland domain.
         for (size_t i = 0; i < cells_water_2d->size(); i++)
         {
             CellGeom2d* geom2d = cells_water_2d->at(i).getGeom();
@@ -493,9 +496,24 @@ int Framework::run()
                 continue;
             }
 
-            double waterDepthOld = cells_water_2d->at(i).getWaterDepth();
-            cells_water_2d->at(i).setWaterDepth(waterDepthOld + precip * time_step);
-            precipVolCum += precip * time_step * geom2d->getArea();
+            double precip_depth = precip * time_step;
+            precipVolCum += precip_depth * geom2d->getArea();
+            double up_stor_thresh = cells_water_2d->at(i).get_up_stor_thresh();
+            double up_stor_depth = cells_water_2d->at(i).get_up_stor_depth();
+            up_stor_depth += precip_depth;
+
+            if (up_stor_depth >= up_stor_thresh) {
+                precip_depth = up_stor_depth - up_stor_thresh;
+                up_stor_depth = up_stor_thresh;
+            }
+            else if (up_stor_depth < up_stor_thresh) {
+                precip_depth = 0.0;
+            }
+
+            cells_water_2d->at(i).set_up_stor_depth(up_stor_depth);
+            double surf_wat_depth = cells_water_2d->at(i).getWaterDepth();
+            cells_water_2d->at(i).setWaterDepth(surf_wat_depth + precip_depth);
+            cells_water_2d->at(i).swap();
         }
 
         // Remove water from overland domain that discharges into sinks.
@@ -503,13 +521,123 @@ int Framework::run()
         {
             cells_water_2d->at(i).removeWatBySinks(time_step);
         }
-
-        // Compute volumetric evapotranspiration flux.
+        
+        // Remove water due to evaporation from surfaces and transpiration from soil due to plants.
         for (size_t i = 0; i < cells_water_3d->size(); i++)
         {
-            cells_water_3d->at(i).calcFluxEvap(pet);
-        }
+            CellGeom3d* geom3d = cells_water_3d->at(i).getGeom();
+            int cell_id = geom3d->getGridConnection();
+            
+            if (geom3d->getMaterial() == 0)
+            {
+                continue;
+            }
 
+            if (cell_id >= 0 && cell_id < cells_water_2d->size())
+            {
+                // Extract evaporation from the surface domain.
+                CellGeom2d* geom2d = cells_water_2d->at(cell_id).getGeom();
+                double cell_area = geom2d->getArea();
+                double up_stor_depth = cells_water_2d->at(cell_id).get_up_stor_depth();
+                double evap_frac = cells_water_2d->at(cell_id).get_evap_frac();
+                double evap_pot = evap_frac * pet * time_step;
+                
+                if (up_stor_depth >= evap_pot) {
+                    up_stor_depth -= evap_pot;
+                    cells_water_2d->at(cell_id).set_up_stor_depth(up_stor_depth);
+                    evap_vol_cum += evap_pot * cell_area;
+                    evap_pot = 0.0;
+                }
+                else if (up_stor_depth < evap_pot) {
+                    evap_pot -= up_stor_depth;
+                    evap_vol_cum += up_stor_depth * cell_area;
+                    up_stor_depth = 0.0;
+                    cells_water_2d->at(cell_id).set_up_stor_depth(up_stor_depth);
+                }
+                if (cells_water_2d->at(cell_id).getWaterDepth() >= evap_pot) {
+                    cells_water_2d->at(cell_id).setWaterDepth(cells_water_2d->at(cell_id).getWaterDepth() - evap_pot);
+                    evap_vol_cum += evap_pot * cell_area;
+                    evap_pot = 0.0;
+                }
+                else if (cells_water_2d->at(cell_id).getWaterDepth() < evap_pot) {
+                    evap_pot -= cells_water_2d->at(cell_id).getWaterDepth();
+                    evap_vol_cum += cells_water_2d->at(cell_id).getWaterDepth() * cell_area;
+                    cells_water_2d->at(cell_id).setWaterDepth(0.0);
+                }
+                
+                // Extract transpiration from the soil.
+                double crop_factor = cells_water_2d->at(cell_id).get_crop_factor();
+                double transp_pot = ((1.0 - evap_frac) * pet * time_step) * crop_factor + evap_pot;
+                double root_depth = cells_water_2d->at(cell_id).get_root_depth();
+                
+                if (crop_factor > 0.0 && root_depth > 0.0 && geom2d != 0) {
+                    std::vector<Vertex> faceCentrePoints = geom3d->getFaceCentrePoints();
+                    Vertex cell_top_vert = faceCentrePoints.at(0);
+                    CellWater3d * cell_water_3d = & cells_water_3d->at(i);
+                    double depth_sum = 0.0;
+                
+                    while (cell_water_3d != 0) {
+                        geom3d = cell_water_3d->getGeom();
+                        size_t num_of_neigh = geom3d->getNumOfNeigh();
+                        faceCentrePoints = geom3d->getFaceCentrePoints();
+                        Vertex cell_bott_vert = faceCentrePoints.at(num_of_neigh-1);
+                        double cell_root_length = 0.0;
+                    
+                        if (depth_sum + cell_top_vert.z - cell_bott_vert.z > root_depth) {
+                            cell_root_length = root_depth - depth_sum;
+                        }
+                        else {
+                            cell_root_length = cell_top_vert.z - cell_bott_vert.z;
+                        }
+
+                        double press_head_eff = cell_water_3d->getPresHead();
+                        double press_head_max = -0.1;
+                        double press_head_min = -5.0;
+                        double press_head_wilt = -150.0;
+                        double moist_factor = 0.0;
+
+                        // Fix out of bounds pressure head.
+                        if (press_head_eff > 0.0)
+                        {
+                            press_head_eff = 0.0;
+                        }
+                        if (press_head_eff < press_head_wilt)
+                        {
+                            press_head_eff = press_head_wilt;
+                        }
+
+                        // Soil wetness is in optimal range.
+                        if (press_head_eff >= press_head_min && press_head_eff <= press_head_max)
+                        {
+                            moist_factor = 1.0;
+                        }
+                        // Soil is too wet.
+                        else if (press_head_eff > press_head_max)
+                        {
+                            moist_factor = 1.0 - (press_head_eff - press_head_max) / (0.0 - press_head_max);
+                        }
+                        // Soil is too dry.
+                        else
+                        {
+                            moist_factor = 1.0 - (press_head_eff - press_head_min) / (press_head_wilt - press_head_min);
+                        }
+
+                        double cell_transp_vol = transp_pot * cell_root_length / root_depth * moist_factor * cell_area;
+                        double wat_vol_old = geom3d->getVolume() * cell_water_3d->getWatCont();
+                        double wat_cont_new = (wat_vol_old - cell_transp_vol) / geom3d->getVolume();
+                        cell_water_3d->changeWatCont(wat_cont_new);
+                        cell_water_3d->swap();
+                        transp_vol_cum += cell_transp_vol;
+
+                        // Continue to the next cell.
+                        depth_sum += cell_top_vert.z - cell_bott_vert.z;
+                        cell_top_vert = cell_bott_vert;
+                        cell_water_3d = cell_water_3d->getNeigh(num_of_neigh - 1);
+                    }
+                }
+            }
+        }
+        
         // Add solute deposition on the surface.
         for (size_t i = 0; i < num_of_species; i++)
         {
@@ -701,7 +829,7 @@ int Framework::run()
             drainVolCum += cells_water_3d->at(i).getDrainVol();
             drainVolCum5min += 1000.0 * cells_water_3d->at(i).getDrainVol();
             infWatCum += cells_water_3d->at(i).getInfVol();
-            evapVolCum += cells_water_3d->at(i).getEvapVol();
+            //et_vol_cum += cells_water_3d->at(i).getEvapVol();
         }
 
         // Process 3d solute mass balance.
@@ -746,7 +874,20 @@ int Framework::run()
                 outfall_vol_cum += water_juncs->at(i).get_outfall_volume();
                 water_juncs->at(i).set_outfall_volume(0.0);
             }
-            
+ 
+            // Compute water volume in the 2d grid upper storage.
+            double waterVolume2dUpper = 0.0;
+
+            for (size_t i = 0; i < cells_water_2d->size(); i++)
+            {
+                CellGeom2d* geom = cells_water_2d->at(i).getGeom();
+
+                if (geom->getMaterial() != 0) {
+                    waterVolume2dUpper += cells_water_2d->at(i).get_up_stor_depth() *
+                        geom->getArea();
+                }
+            }
+
             // Compute water volume in the 2d grid.
             double waterVolume2d = 0.0;
 
@@ -814,11 +955,13 @@ int Framework::run()
             resultRow.push_back(std::to_string(cells_water_3d->at(
                 settings.get_int("cell_index")).getWatCont()));
             resultRow.push_back(std::to_string(wat_vol_net));
+            resultRow.push_back(std::to_string(waterVolume2dUpper));
             resultRow.push_back(std::to_string(waterVolume2d));
             resultRow.push_back(std::to_string(waterVolume3d));
             resultRow.push_back(std::to_string(precipVolCum));
             resultRow.push_back(std::to_string(outfall_vol_cum));
-            resultRow.push_back(std::to_string(evapVolCum));
+            resultRow.push_back(std::to_string(evap_vol_cum));
+            resultRow.push_back(std::to_string(transp_vol_cum));
             resultRow.push_back(std::to_string(infWatCum));
             resultRow.push_back(std::to_string(drainVolCum));
             resultRow.push_back(std::to_string(drainVolCum5min));

@@ -23,6 +23,7 @@ public:
 	void computeFaceAreas();
 	void computeVolume();
 	std::vector<std::vector<int> > getFaceVertIndices() { return faceVertIndices; }
+	std::vector< Vertex > getFaceCentrePoints() { return faceCentrePoints; }
 	std::vector<int> getNeighIndices() { return neighIndices; }
 	double getFaceArea(int index){return faceAreas.at(index);}
 	double getVolume(){return volume;}

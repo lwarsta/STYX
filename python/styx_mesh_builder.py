@@ -1295,20 +1295,28 @@ def main(argv):
     # Write surface materials file to disk.
     print("-> Writing surface materials file.")
     materials_2d_data = [
-        ['Material','Mannings n [-]','Depression storage [m]'],
+        [
+            'Material',
+            'Mannings n [-]',
+            'Depression Storage [m]',
+            'Upper Storage [m]',
+            'Evaporation fraction [-]',
+            'Crop Factor [-]',
+            'Root Depth [m]',
+        ],
     ]
-    materials_2d_data.append(['Undefined',0.1,0.001])
-    materials_2d_data.append(['Road',0.01,0.001])
-    materials_2d_data.append(['Building',0.01,0.001])
-    materials_2d_data.append(['OtherImpermeableSurface',0.1,0.001])
-    materials_2d_data.append(['Field',0.1,0.002])
-    materials_2d_data.append(['LowVegetation',0.1,0.003])
-    materials_2d_data.append(['Trees_2-10m',0.1,0.003])
-    materials_2d_data.append(['Trees_10-15m',0.1,0.003])
-    materials_2d_data.append(['Trees_15-20m',0.1,0.003])
-    materials_2d_data.append(['Trees_over_20m',0.1,0.003])
-    materials_2d_data.append(['BareSoil',0.1,0.002])
-    materials_2d_data.append(['Water',0.01,0.0001])
+    materials_2d_data.append(['Undefined',              0.1, 0.001,0.000,0.1,0.0,0.0])
+    materials_2d_data.append(['Road',                   0.01,0.001,0.000,0.1,0.0,0.0])
+    materials_2d_data.append(['Building',               0.01,0.001,0.000,0.1,0.0,0.0])
+    materials_2d_data.append(['OtherImpermeableSurface',0.1, 0.001,0.000,0.1,0.0,0.0])
+    materials_2d_data.append(['Field',                  0.1, 0.002,0.001,0.1,1.0,1.0])
+    materials_2d_data.append(['LowVegetation',          0.1, 0.003,0.001,0.1,1.0,1.0])
+    materials_2d_data.append(['Trees_2-10m',            0.1, 0.003,0.001,0.1,1.0,1.0])
+    materials_2d_data.append(['Trees_10-15m',           0.1, 0.003,0.001,0.1,1.0,1.0])
+    materials_2d_data.append(['Trees_15-20m',           0.1, 0.003,0.001,0.1,1.0,1.0])
+    materials_2d_data.append(['Trees_over_20m',         0.1, 0.003,0.001,0.1,1.0,1.0])
+    materials_2d_data.append(['BareSoil',               0.1, 0.002,0.000,0.1,0.1,0.1])
+    materials_2d_data.append(['Water',                  0.01,0.001,0.000,0.1,0.1,0.0])
     path_materials_2d = os.path.join(st_path_to_output_folder, st_materials_2d_file)
     write_output_data_to_disk(path_materials_2d, materials_2d_data, ',')
 
@@ -1512,6 +1520,7 @@ def main(argv):
     ]
     datetime_obj = datetime.datetime(2020,1,1,0,0)
     const_air_temp = 20.0
+    const_pet = 0.0104
     precip_mult = 10.0 # 1.0
     max_precip_time = 1800
     atmos_forc_time_step = 300
@@ -1522,7 +1531,7 @@ def main(argv):
         if sim_time < 2 * max_precip_time:
             precip = 0.5 * (math.sin(math.pi * (sim_time - 0.5 * max_precip_time) / max_precip_time) + 1)
             precip *= precip_mult
-        atmos_forc_data.append([datetime_str,precip,0.0,const_air_temp])
+        atmos_forc_data.append([datetime_str,precip,const_pet,const_air_temp])
         sim_time += atmos_forc_time_step
         datetime_obj = datetime_obj + datetime.timedelta(minutes=atmos_forc_time_step/60)
     path_atmos_forc = os.path.join(st_path_to_output_folder, st_atmos_forc_file)
