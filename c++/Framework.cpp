@@ -870,7 +870,7 @@ int Framework::run()
                 wat_vol_net += water_juncs->at(i).get_water_depth() * geom_junc->get_area();
             }
 
-            // outfall_vol_cum
+            // Compute water water volume lost via outfalls.
             for (size_t i = 0; i < water_juncs->size(); i++)
             {
                 outfall_vol_cum += water_juncs->at(i).get_outfall_volume();
