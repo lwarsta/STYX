@@ -424,6 +424,7 @@ int Framework::run()
     double drainVolCum5min = 0.0;
     double sinkVolCum = 0.0;
     double outfall_vol_cum = 0.0;
+    double outfall_vol = 0.0;
     std::vector<double> infMassCum;
     infMassCum.assign(num_of_species, 0.0);
     std::vector<double> drainMassCum;
@@ -454,6 +455,7 @@ int Framework::run()
     header.push_back("subsurface water volume [m3]");
     header.push_back("precipitation cum. [m3]");
     header.push_back("Outfall cum. [m3]");
+    header.push_back("Outfall [l/s]");
     header.push_back("evaporation cum. [m3]");
     header.push_back("transpiration cum. [m3]");
     header.push_back("water infiltration cum. [m3]");
@@ -872,6 +874,7 @@ int Framework::run()
             for (size_t i = 0; i < water_juncs->size(); i++)
             {
                 outfall_vol_cum += water_juncs->at(i).get_outfall_volume();
+                outfall_vol += 1000.0 * water_juncs->at(i).get_outfall_volume() / settings.get_double("time_print_thresh");
                 water_juncs->at(i).set_outfall_volume(0.0);
             }
  
@@ -960,6 +963,8 @@ int Framework::run()
             resultRow.push_back(std::to_string(waterVolume3d));
             resultRow.push_back(std::to_string(precipVolCum));
             resultRow.push_back(std::to_string(outfall_vol_cum));
+            resultRow.push_back(std::to_string(outfall_vol));
+            outfall_vol = 0.0;
             resultRow.push_back(std::to_string(evap_vol_cum));
             resultRow.push_back(std::to_string(transp_vol_cum));
             resultRow.push_back(std::to_string(infWatCum));
