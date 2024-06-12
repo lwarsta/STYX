@@ -625,6 +625,7 @@ def main(argv):
     path_ditches = cfg.get('input', 'path_ditches')
     path_to_net_junctions = cfg.get('input', 'path_to_net_junctions')
     path_to_net_links = cfg.get('input', 'path_to_net_links')
+    path_to_add_wells = cfg.get('input', 'path_to_add_wells')
     path_to_sinks = cfg.get('input', 'path_to_sinks')
     path_to_mask_folder = cfg.get('input', 'path_to_mask_folder')
     path_to_dem_folder = cfg.get('input', 'path_to_dem_folder')
@@ -795,20 +796,27 @@ def main(argv):
                 sinks.append(feature)
     else:
         print("-> No sink geometry file found.")
-    
+
     # Load junctions.
     print("-> Loading junction features.")
     feats_junctions = []
     with fiona.open(path_to_net_junctions) as src:
         for feature in src:
             feats_junctions.append(feature)
-            
+
     # Load links.
     print("-> Loading link features.")
     feats_links = []
     with fiona.open(path_to_net_links) as src:
         for feature in src:
             feats_links.append(feature)
+
+    # Load additional wells.
+    print("-> Loading additional well features.")
+    wells_add = []
+    with fiona.open(path_to_add_wells) as src:
+        for feature in src:
+            wells_add.append(feature)
 
     # Generate structured meshes.
     if meshing_method == 1:
@@ -1135,6 +1143,28 @@ def main(argv):
     path_link_vtk = os.path.join(st_path_to_output_folder, st_link_vtk_file)
     write_output_data_to_disk(path_link_vtk, mesh_link_lst, ' ')
     
+    # Add additional wells that drain water from the surface grid and 
+    # discharge the water into closest junction.
+    print("-> Finding the surface cell where the additional wells are located.")
+    link_to_junc_thresh = 200.0
+    for ind, well_add in enumerate(wells_add):
+        # Find the surface cell where the additional wells are located.
+        well_geom = shape(well_add['geometry'])
+        inters_ids = list(idx.intersection(well_geom.bounds))
+        con_cell_ind = -1
+        for inters_id in inters_ids:
+            try:
+                if well_geom.intersects(surf_grid_geoms[inters_id]):
+                    con_cell_ind = inters_id
+            except:
+                print("-> Error in intersection computation with wells "
+                      "in system {}".format(network_id))
+        # Find the closest network junction to connect the cell into.
+        if con_cell_ind != -1:
+            conn_id = find_closest_junc(link_to_junc_thresh, cells_2d[con_cell_ind].cp,
+                                        vertices_junction, junctions)
+            cells_2d[con_cell_ind].junction_and_outlet = conn_id
+            #print(ind, con_cell_ind, conn_id)
     
     
     # WRITE SETTINGS FILE.
@@ -1421,9 +1451,6 @@ def main(argv):
     path_init_cond_3d = os.path.join(st_path_to_output_folder, st_init_cond_3d_file)
     write_output_data_to_disk(path_init_cond_3d, init_cond_3d_data, ',')
 
-
-
-
     # Link the building roofs to stormwater network junctions.
     # Connect the roof to adjacent street/ground cell if there are no junctions
     # in range.
@@ -1436,7 +1463,7 @@ def main(argv):
             conn_id = find_closest_junc(link_to_junc_thresh, cell.cp, 
                                         vertices_junction, junctions)
             cell.junction_and_outlet = conn_id
-    
+        
     # Find locations of sinks.
     print("-> Finding locations of sinks.")
     sink_id_in_cell = {}
@@ -1455,7 +1482,7 @@ def main(argv):
         for cell_id in cell_ids:
             sink_id_in_cell[cell_id] = sink_id
   
-    # Write network boundary conditions file.
+    # Write network junction boundary conditions file.
     print("-> Writing network junction boundary conditions file.")
     bound_cond_net_data = [
         ['Id','Type (-)'],
@@ -1482,9 +1509,9 @@ def main(argv):
     ]
     for cell_id, cell in enumerate(cells_2d):
         # Outlet id.
-        outlet_id = -1
-        if cell_id in cell_outlet_id:
-            outlet_id = cell_outlet_id[cell_id]
+        #outlet_id = -1
+        #if cell_id in cell_outlet_id:
+        #    outlet_id = cell_outlet_id[cell_id]
         # Distance to outlets.
         distance_to_outlet = -1.0
         if cell_id in cell_outlet_dist:
@@ -1500,7 +1527,7 @@ def main(argv):
         bound_cond_2d_data.append([cell.id, outlet_id, distance_to_outlet, sink_id])
     path_bound_cond_2d = os.path.join(st_path_to_output_folder, st_bound_cond_2d_file)
     write_output_data_to_disk(path_bound_cond_2d, bound_cond_2d_data, ',')
-    
+        
     # Write subsurface boundary conditions file.
     print("-> Writing subsurface boundary conditions file.")
     bound_cond_3d_data = [
