@@ -814,9 +814,12 @@ def main(argv):
     # Load additional wells.
     print("-> Loading additional well features.")
     wells_add = []
-    with fiona.open(path_to_add_wells) as src:
-        for feature in src:
-            wells_add.append(feature)
+    if os.path.exists(path_to_add_wells) and os.path.isfile(path_to_add_wells):
+        with fiona.open(path_to_add_wells) as src:
+            for feature in src:
+                wells_add.append(feature)
+    else:
+        print("-> No additional well file found.")
 
     # Generate structured meshes.
     if meshing_method == 1:
