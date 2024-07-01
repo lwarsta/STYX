@@ -1,4 +1,5 @@
 import os
+import glob
 import sys
 import time
 import vtk
@@ -29,45 +30,54 @@ def main(argv):
     dict: A dictionary containing the data for each property for each cell.
     
     """
-    # Extract the path to the VTK file and the file name.
-    path_vtk_file = argv[1]
-    path, vtk_file_name = os.path.split(path_vtk_file)
-    
-    # Print path information for debugging purposes.
-    print(path)
-    print(vtk_file_name)
-    print(path_vtk_file)
-    
-    # Create a VTK reader object.
-    reader = vtk.vtkUnstructuredGridReader()
-    
-    # Specify the VTK input file name.
-    reader.SetFileName(path_vtk_file)
-    
-    # Read the VTK file.
-    reader.Update()
-    
-    # Get the VTK output object from the reader.
-    output = reader.GetOutput() 
-    
-    # Get cell data from the VTK output object.
-    properties, cell_data = extract_cell_data(output)
-    
-    # Get cell vertex ids from the VTK output object.
-    cell_vert_ids = extract_vertex_data(output)
-    
-    # Get point data from the VTK output object.
-    point_data, bounds = extract_point_data(output)
-    
-    # Create features based on the extracted data.
-    # Features with material 0 are currently removed.
-    features = create_features(properties, point_data, cell_vert_ids, cell_data)
+        
+    # Extract the path to the VTK file prefix.
+    path_vtk_prefix = argv[1]
+    path, vtk_prefix = os.path.split(path_vtk_prefix)
 
-    # Write the features to a vector file.
-    write_vector_file(path, properties, features)
-    
-    # Write data fields to separate raster files.
-    write_raster_files(path, properties, bounds, features)
+    # Search for all VTK files with the same prefix.
+    vtk_files = glob.glob(os.path.join(path, f"{vtk_prefix}*.vtk"))
+
+    # Initialize dictionaries to store data.
+    #all_properties = {}
+    #all_cell_data = {}
+
+    # Process each VTK file.
+    for vtk_file in vtk_files:
+        # Create a VTK reader object.
+        reader = vtk.vtkUnstructuredGridReader()
+
+        # Specify the VTK input file name.
+        reader.SetFileName(vtk_file)
+
+        # Read the VTK file.
+        reader.Update()
+
+        # Get the VTK output object from the reader.
+        output = reader.GetOutput()
+
+        # Get cell data from the VTK output object.
+        properties, cell_data = extract_cell_data(output)
+        
+        # Get cell vertex ids from the VTK output object.
+        cell_vert_ids = extract_vertex_data(output)
+        
+        # Get point data from the VTK output object.
+        point_data, bounds = extract_point_data(output)
+        
+        # Create features based on the extracted data.
+        # Features with material 0 are currently removed.
+        features = create_features(properties, point_data, cell_vert_ids, cell_data)
+        
+        # Extract file base name with index numbering.
+        base_name = os.path.splitext(os.path.basename(vtk_file))[0]
+        base_name = os.path.join(path, base_name)
+        
+        # Write the features to a vector file.
+        write_vector_file(base_name, properties, features)
+        
+        # Write data fields to separate raster files.
+        write_raster_files(base_name, properties, bounds, features)
 
 def extract_cell_data(output):
     """
@@ -261,10 +271,11 @@ def write_vector_file(path, properties, features):
     schema = {'geometry': 'Polygon', 'properties': properties}
     
     # Print properties to console for reference
-    print(properties)
+    #print(properties)
 
     # Set output file parameters
-    path_out = os.path.join(path, 'output.gpkg')
+    path_out = path + '.gpkg' #'output.gpkg')
+    print(path_out)
     crs_out = 'EPSG:3067'
     driver_out = 'GPKG'
     
@@ -286,7 +297,7 @@ def write_raster_files(path, properties, bounds, features):
         None
     """
     # Define some parameters for the output raster files
-    res = 4  # Resolution of the output raster (in meters)
+    res = 10  # Resolution of the output raster (in meters)
     no_data_val = -1  # Value to be used for no data
     compression = 'DEFLATE'  # Compression method for the output raster
     out_crs = 'EPSG:3067'  # Coordinate reference system for the output raster
@@ -295,9 +306,10 @@ def write_raster_files(path, properties, bounds, features):
     # Loop through each property and create a raster file for it
     for prop_key, prop_type in properties.items():
         # Define full path for the raster.
-        file_name = 'output_' + prop_key + '.tif'
-        path_out = os.path.join(path, file_name)
-
+        prop_name = '_' + prop_key + '.tif' #'output_' + prop_key + '.tif'
+        path_out = path + prop_name
+        print(path_out)
+        
         # Set data type based on the property type (int or float)
         if prop_type == 'int' or 'int' in prop_type.lower():
             dtype = np.int16
@@ -331,6 +343,7 @@ def write_raster_files(path, properties, bounds, features):
 
             # Write the numpy array to the raster dataset
             dst.write(image, 1)
+        
 
 # Define the main entry point of the script
 if __name__ == "__main__":

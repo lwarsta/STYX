@@ -170,12 +170,10 @@ def merge_layers(output_folder, output_gpkg, combined_layer_name):
     """
     Merge all layers from GeoPackage files found in the specified output folder into a single layer in a new GeoPackage file.
     All polygons are upgraded to multipolygons.
-
     Args:
     output_folder (str): Folder where the GeoPackage files are stored.
     output_gpkg (str): Path to the output GeoPackage file where the combined layer will be stored.
     combined_layer_name (str): Name of the combined layer in the output GeoPackage.
-
     Returns:
     None
     """
@@ -183,7 +181,6 @@ def merge_layers(output_folder, output_gpkg, combined_layer_name):
     features = []
     crs = None
     schema = None
-
     for gpkg_file in gpkg_files:
         with fiona.open(gpkg_file) as src:
             if src:
@@ -193,20 +190,29 @@ def merge_layers(output_folder, output_gpkg, combined_layer_name):
                     # Use the schema of the first non-empty layer
                     schema = src.schema
                     schema['geometry'] = 'MultiPolygon'  # Ensure the geometry type is MultiPolygon
-
                 for feature in src:
-                    geom = shape(feature['geometry'])
-                    # Ensure all geometries are converted to MultiPolygon
-                    if isinstance(geom, Polygon):
-                        geom = MultiPolygon([geom])
-                    elif isinstance(geom, MultiPolygon):
-                        geom = MultiPolygon([shape(poly) for poly in geom.geoms])
-                    else:
-                        print(f"Unsupported geometry type: {geom.type} in feature {feature['id']}")
-
-                    # Update the feature's geometry
-                    feature['geometry'] = transform_geom(src.crs, src.crs, geom.__geo_interface__)
-                    features.append(feature)
+                    if feature['geometry'] is None:
+                        print(f"Skipping feature {feature.get('id', 'unknown')} with null geometry")
+                        continue
+                    try:
+                        geom = shape(feature['geometry'])
+                        # Ensure all geometries are converted to MultiPolygon
+                        if isinstance(geom, Polygon):
+                            geom = MultiPolygon([geom])
+                        elif isinstance(geom, MultiPolygon):
+                            geom = MultiPolygon([shape(poly) for poly in geom.geoms])
+                        else:
+                            print(f"Unsupported geometry type: {geom.type} in feature {feature.get('id', 'unknown')}")
+                            continue
+                        # Update the feature's geometry
+                        feature['geometry'] = geom.__geo_interface__
+                        features.append(feature)
+                    except Exception as e:
+                        print(f"Error processing feature {feature.get('id', 'unknown')}: {e}")
+    
+    if not features:
+        print("No valid features found. Output file will not be created.")
+        return
 
     # Write all features into the combined layer of a new GeoPackage
     with fiona.open(output_gpkg, 'w', driver='GPKG', schema=schema, layer=combined_layer_name, crs=crs) as dst:
@@ -214,7 +220,7 @@ def merge_layers(output_folder, output_gpkg, combined_layer_name):
             try:
                 dst.write(feature)
             except Exception as e:
-                print(f"Error writing feature {feature['id']}: {e}")
+                print(f"Error writing feature {feature.get('id', 'unknown')}: {e}")
 
 def rasterize_vector(input_gpkg, output_tif, extents, attribute_name, pixel_size=2):
     """
@@ -475,10 +481,10 @@ def main(
     path_output_file_soil_types_top_remapped = os.path.join(path_output_folder_tmp, 'soil_types_top_remapped.tif')
     path_output_file_soil_types_bottom_remapped = os.path.join(path_output_folder_tmp, 'soil_types_bottom_remapped.tif')
     path_output_file_soil_types_top_remapped_land_use = os.path.join(path_output_folder_tmp, 'soil_types_top_remapped_with_landuse.tif')
-        
+    
     # Get adjusted extents.
     extents = get_adjusted_extents(path_input_file_aoi)
-    
+
     # Rasterize a mask layer.
     rasterize_vector(path_input_file_aoi, path_output_file_mask, extents, 'xxx')
     
@@ -508,7 +514,7 @@ def main(
     # Rasterize soil types.
     rasterize_vector(path_input_file_soil_types, path_output_file_soil_types_top, extents, 'PINTAMAALAJI_KOODI')
     rasterize_vector(path_input_file_soil_types, path_output_file_soil_types_bottom, extents, 'POHJAMAALAJI_KOODI')
-    
+
     # Remap raster soil type values
     remap_values(path_output_file_soil_types_top, path_output_file_soil_types_top_remapped, mapping_soils)
     remap_values(path_output_file_soil_types_bottom, path_output_file_soil_types_bottom_remapped, mapping_soils)

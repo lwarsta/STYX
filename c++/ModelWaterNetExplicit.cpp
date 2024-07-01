@@ -64,7 +64,8 @@ void ModelWaterNetExplicit::comp_flow_from_cell_to_junc(JuncWater &junc_water, C
 		if (junc_depth > 0.0 && cell_mann_n > 0.0) {
 			// Compute flow velocity, flux and volume entering the junction.
 			double cell_veloc = pow(cell_water_depth_act, 2.0 / 3.0) / cell_mann_n * sqrt(cell_geom->getAverageSlope());
-			inflow_vol = 2.0 * algorithms.get_pi() * junc_geom->get_diameter() * cell_water_depth_act * cell_veloc * sub_time_step;
+			//inflow_vol = 2.0 * algorithms.get_pi() * junc_geom->get_diameter() * cell_water_depth_act * cell_veloc * sub_time_step;
+			inflow_vol = sqrt(cell_geom->getArea()) * cell_water_depth_act * cell_veloc * sub_time_step;
 
 			// Restrict inflow to existing cell water volume.
 			if (inflow_vol > cell_water_depth_act * cell_area) {
@@ -107,7 +108,7 @@ void ModelWaterNetExplicit::preprocess(Grid2d& grid2d, Network& network)
 			comp_flow_from_cell_to_junc(water_juncs->at(outlet_id), water_cells->at(i));
 		}
 	}
-
+	
 	// Transfer water from overlying cells to junctions.
 	for (size_t i = 0; i < water_juncs->size(); i++)
 	{
@@ -220,7 +221,7 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 				double velocity = 0.0;
 				double flux = 0.0;
 				double mann_n = links.at(j)->get_mann_n();
-
+				
 				if (head > head_neigh) {
 					int id_lnk_end = ids_lnk_end.at(j);
 					double elevation_link = link_vrts.at(id_lnk_end)->z;
@@ -237,7 +238,7 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 						links.at(j)->comp_flow_area_and_hydr_rad(water_depth_lnk, filled_area, hydraulic_rad);
 						//double velocity = 1.0 / mann_n * sqrt(slope) * pow(hydraulic_rad, 2.0 / 3.0);
 						double velocity = 1.0 / mann_n * sqrt(slope_link) * pow(hydraulic_rad, 2.0 / 3.0);
-						
+						//std::cout << velocity << "\n";
 						// Currently flow velocity in a pipe is restricted to a given maximum velocity.
 						// This used to ensure stable computation. try to fix this later.
 						//if (velocity > flow_vel_max) {
@@ -315,7 +316,7 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 		double error_thresh = 0.000001; // Get this constant from settings
 		int iterations_max = 1000; // Get this constant from settings
 		int iterations = 0;
-		double water_depth_min_thresh = -0.1;
+		double water_depth_min_thresh = -0.01; //-0.1;
 		double water_depth_min;
 
 		do {

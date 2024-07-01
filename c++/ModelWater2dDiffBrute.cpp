@@ -43,7 +43,8 @@ double ModelWater2dDiffBrute::calcResidual(CellWater2d& water, double waterDepth
 	int material = geom->getMaterial();
 
 	// Bypass building and inactive cells.
-	if (material != 2 && material != 0)
+	//if (material != 2 && material != 0)
+	if (material != 0)
 	{
 		// Initialise local inter cell variables.
 		std::vector<double> fluxInter;
@@ -80,7 +81,9 @@ double ModelWater2dDiffBrute::calcResidual(CellWater2d& water, double waterDepth
 				int materialNeigh = geomNeigh->getMaterial();
 
 				// Bypass building.
-				if (materialNeigh != 2 && materialNeigh != 0)
+				//if (materialNeigh != 2 && materialNeigh != 0)
+				if (((material == 2 && materialNeigh == 2) or (material != 2 && materialNeigh != 2)) && materialNeigh != 0)
+				//if (materialNeigh != 0)
 				{
 					Vertex centerPointNeigh = geomNeigh->getCentrePoint();
 					double elevationNeigh = centerPointNeigh.z;
