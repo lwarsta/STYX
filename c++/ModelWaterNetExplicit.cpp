@@ -11,7 +11,6 @@ void ModelWaterNetExplicit::configure(int iter_stop_new, double iter_cut_thresh_
 	iter_stop_bis = iter_stop_bis_new;
 	thresh_left_bis = thresh_left_bis_new;
 	thresh_right_bis = thresh_right_bis_new;
-	flow_vel_max = 1.0; // Get this from settings, this is not used currently
 	sub_time_step = 1.0; // Get this from settings.
 	num_of_steps = int(time_step / sub_time_step);
 }
@@ -122,250 +121,260 @@ void ModelWaterNetExplicit::preprocess(Grid2d& grid2d, Network& network)
 	}
 }
 
+double ModelWaterNetExplicit::comp_sys_water_volume(Grid2d& grid2d, Network& network)
+{
+	std::vector<JuncWater>* water_juncs = network.get_water_juncs();
+	std::vector<LinkWater>* water_links = network.get_water_links();
+	double sys_water_volume = 0.0;
+
+	// Compute water volume in the junctions.
+	for (size_t i = 0; i < water_juncs->size(); i++) {
+		JuncGeom* geom = water_juncs->at(i).get_geom();
+		sys_water_volume += water_juncs->at(i).get_water_depth() * geom->get_area();
+	}
+
+	// Compute water volume in the pipes.
+	for (size_t i = 0; i < water_links->size(); i++) {
+		double water_depth = water_links->at(i).get_water_depth();
+		double filled_area = 0.0;
+		double hydraulic_rad = 0.0;
+		water_links->at(i).comp_flow_area_and_hydr_rad(
+			water_depth,
+			filled_area,
+			hydraulic_rad);
+		LinkGeom* geom = water_links->at(i).get_geom();
+		sys_water_volume += geom->get_length() * filled_area;
+	}
+
+	return sys_water_volume;
+}
+
+void ModelWaterNetExplicit::revert_heads(Grid2d& grid2d, Network& network)
+{
+	std::vector<JuncWater>* water_juncs = network.get_water_juncs();
+	std::vector<LinkWater>* water_links = network.get_water_links();
+
+	for (size_t i = 0; i < water_juncs->size(); i++) {
+		water_juncs->at(i).set_water_depth(water_juncs->at(i).get_water_depth_old());
+	}
+
+	for (size_t i = 0; i < water_links->size(); i++) {
+		water_links->at(i).set_water_depth(water_links->at(i).get_water_depth_old());
+	}
+}
+
 void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 {
 	std::vector<JuncWater>* water_juncs = network.get_water_juncs();
+	std::vector<LinkWater>* water_links = network.get_water_links();
 	double time_loc = 0.0;
+	double sub_time_step_frac;
+	double error_thresh = 0.0001; // Get this constant from settings
+	int iterations;
+	int iterations_max = 1000; // Get this constant from settings
+	double water_depth_min_thresh = -0.01; // Get this constant from settings
+	double water_depth_min;
+	Algorithms algorithms;
+	
+	// Compute water flow in the network during a sub time step.
+	do { // subtime step fraction loop
+		iterations = 0;
+		double sys_water_volume_old = comp_sys_water_volume(grid2d, network);
+		double volume_error;
+		sub_time_step_frac = 1.0;
 
-	// Compute water volume in the system.
-	// Is this the best place for this?
-	double sys_water_volume = 0.0;
+		if (sub_time_step_frac > sub_time_step) {
+			sub_time_step_frac = sub_time_step;
+		}
 
-	for (int i = 0; i < water_juncs->size(); i++) {
-		JuncGeom* junc_geom = water_juncs->at(i).get_geom();
-		sys_water_volume += water_juncs->at(i).get_water_depth_old() * junc_geom->get_area();
-	}
+		if (sub_time_step_frac > sub_time_step - time_loc && sub_time_step - time_loc > 0.0) {
+			sub_time_step_frac = sub_time_step - time_loc;
+		}
 
-	do {
-		std::vector <std::vector<double>> fluxes;
-		std::vector <std::vector<double>> velocities;
-		std::vector <std::vector<double>> distances;
-		fluxes.resize(water_juncs->size());
-		velocities.resize(water_juncs->size());
-		distances.resize(water_juncs->size());
-
-		//#pragma omp parallel for
-		for (int i = 0; i < water_juncs->size(); i++)
-		{
-			// Calculate water volume in the junction.
-			double depth_water = water_juncs->at(i).get_water_depth_old();
-			JuncGeom* junc_geom = water_juncs->at(i).get_geom();
-			double volume_water = depth_water * junc_geom->get_area();
-			double vol_water_change = 0.0;
-
-			// Get neighbours and initialise variables.
-			std::vector<JuncWater*> water_juncs_neigh = water_juncs->at(i).get_juncs_neigh();
-			std::vector<int> ids_lnk_end = water_juncs->at(i).get_ids_lnk_end();
-			std::vector<LinkWater*> links = water_juncs->at(i).get_links();
-
-			// Initialise local inter cell variables.
-			fluxes.at(i).assign(water_juncs_neigh.size(), 0.0);
-			velocities.at(i).assign(water_juncs_neigh.size(), 0.0);
-			distances.at(i).assign(water_juncs_neigh.size(), 0.0);
-
-			// Water depth cannot decrease below zero.
-			// This was used to take into account depression storage.
-			// Is it still needed?
-			if (depth_water < 0.0)
+		do { // error iteration loop
+			// Compute water flow between junctions.
+			for (size_t i = 0; i < water_juncs->size(); i++)
 			{
-				depth_water = 0.0;
-			}
+				// Get current junction properties.
+				JuncGeom* geom_junc = water_juncs->at(i).get_geom();
+				// COMPUTE HEAD WITHIN THE CLASS/OBJECT.
+				std::vector<Vertex*> vrts_junc = geom_junc->getVertPointers();
+				double elev_bott_junc = vrts_junc.at(1)->z;
+				double depth_water_old_junc = water_juncs->at(i).get_water_depth_old();
+				double head_old_junc = elev_bott_junc + depth_water_old_junc;
+				double area_junc = geom_junc->get_area();
+				std::vector<int> ids_lnk_end = water_juncs->at(i).get_ids_lnk_end();
+				std::vector<LinkWater*> links_water_neigh = water_juncs->at(i).get_links();
 
-			// Hydraulic head in the junction.
-			// Elevation below depicts the bottom of the junction.
-			std::vector<Vertex*> junc_vrts = junc_geom->getVertPointers();
-			double elevation = junc_vrts.at(1)->z;
-			double head = elevation + depth_water;
+				// Get neighbour junctions and links.
+				std::vector<JuncWater*> water_juncs_neigh = water_juncs->at(i).get_juncs_neigh();
 
-			for (size_t j = 0; j < water_juncs_neigh.size(); j++)
-			{
-				// Compute neighbour junction elevation.
-				// Elevation below depicts the bottom of the junction.
-				JuncWater* junc_water_neigh = water_juncs_neigh.at(j);
-				JuncGeom* junc_geom_neigh = junc_water_neigh->get_geom();
-				std::vector<Vertex*> junc_vrts_neigh = junc_geom_neigh->getVertPointers();
-				double elevation_neigh = junc_vrts_neigh.at(1)->z;
-
-				// Water depth cannot decrease below zero.
-				// This was used to take into account depression storage.
-				// Is it still needed?
-				double depth_water_neigh = junc_water_neigh->get_water_depth_old();
-
-				if (depth_water_neigh < 0.0)
+				for (size_t j = 0; j < water_juncs_neigh.size(); j++)
 				{
-					depth_water_neigh = 0.0;
-				}
+					// Get neighbour junction properties.
+					JuncGeom* geom_junc_neigh = water_juncs_neigh.at(j)->get_geom();
+					// COMPUTE HEAD WITHIN THE CLASS/OBJECT.
+					std::vector<Vertex*> vrts_junc_neigh = geom_junc_neigh->getVertPointers();
+					double elev_bott_junc_neigh = vrts_junc_neigh.at(1)->z;
+					double depth_water_old_junc_neigh = water_juncs_neigh.at(j)->get_water_depth_old();
+					double head_old_junc_neigh = elev_bott_junc_neigh + depth_water_old_junc_neigh;
+					double area_junc_neigh = geom_junc_neigh->get_area();
 
-				double head_neigh = elevation_neigh + depth_water_neigh;
-
-				// Compute hydraulic slope between the junctions.
-				Vertex junc_vrt = *junc_vrts.at(1);
-				junc_vrt.z = 0.0;
-				Vertex junc_vrt_neigh = *junc_vrts_neigh.at(1);
-				junc_vrt_neigh.z = 0.0;
-				Algorithms algorithms;
-				Vertex junc_vec = algorithms.create_vector(junc_vrt, junc_vrt_neigh);
-				double distance = algorithms.compute_vector_length(junc_vec);
-				double slope = 0.0;
-				distances.at(i).at(j) = distance;
-
-				if (distance > 0.0) {
-					slope = (head - head_neigh) / distance;
-				}
-
-				// Compute flow direction, velocity and flux in a link.
-				LinkGeom* link_geom = links.at(j)->get_geom();
-				double slope_link = link_geom->get_slope();
-				std::vector<Vertex*> link_vrts = link_geom->getVertPointers();
-				double filled_area = 0.0;
-				double velocity = 0.0;
-				double flux = 0.0;
-				double mann_n = links.at(j)->get_mann_n();
-				
-				if (head > head_neigh) {
+					// Get link properties.
+					LinkGeom* geom_link = links_water_neigh.at(j)->get_geom();
+					double diam_link = geom_link->get_diameter();
+					double slope_link = geom_link->get_slope();
+					double length_flat_link = geom_link->get_length_flat();
+					double length_link = geom_link->get_length();
+					double area_link = geom_link->get_area();
+					// COMPUTE HEAD WITHIN THE CLASS/OBJECT.
+					Vertex centre_point_link = geom_link->getCentrePoint();
+					double elev_centre_point_link = centre_point_link.z;
+					double water_depth_old_link = links_water_neigh.at(j)->get_water_depth_old();
+					double head_old_link = elev_centre_point_link + water_depth_old_link;
+					double filled_area_old_link = 0.0;
+					double hydraulic_rad_old_link = 0.0;
+					links_water_neigh.at(j)->comp_flow_area_and_hydr_rad(
+						water_depth_old_link,
+						filled_area_old_link,
+						hydraulic_rad_old_link);
+					double filled_volume_old_link = length_link * filled_area_old_link;
+					double full_volume_link = length_link * area_link;
+					double free_volume_old_link = full_volume_link - filled_volume_old_link;
 					int id_lnk_end = ids_lnk_end.at(j);
-					double elevation_link = link_vrts.at(id_lnk_end)->z;
+					int id_lnk_end_neigh = !id_lnk_end;
+					std::vector<Vertex*> link_vrts = geom_link->getVertPointers();
+					double elev_bott_link = link_vrts.at(id_lnk_end)->z;
+					double elev_bott_link_neigh = link_vrts.at(id_lnk_end_neigh)->z;
+					double mann_n = links_water_neigh.at(j)->get_mann_n();
 
-					if (head > elevation_link) {
-						double water_depth_lnk = head - elevation_link;
+					// Check following (> 0.0): length_flat_link, area_link, mann_n ...
+					// Check following (>= 0.0): slope_link, hydraulic_rad
 
-						if (water_depth_lnk > depth_water) {
-							water_depth_lnk = depth_water;
+					// Unpressurized flow.
+					if (free_volume_old_link > 0.0 || head_old_junc < elev_bott_link + diam_link || head_old_junc_neigh < elev_bott_link_neigh + diam_link) {
+						// Flow direction from junction to link.
+						if (head_old_junc > head_old_link) {
+							double depth_water_old_junc_eff = head_old_junc - elev_bott_link;
+							if (depth_water_old_junc_eff < 0.0) depth_water_old_junc_eff = 0.0;
+							double filled_area = 0.0;
+							double hydraulic_rad = 0.0;
+							links_water_neigh.at(j)->comp_flow_area_and_hydr_rad(
+								depth_water_old_junc_eff,
+								filled_area,
+								hydraulic_rad);
+							double velocity = 1.0 / mann_n * sqrt(slope_link) * pow(hydraulic_rad, 2.0 / 3.0);
+							double discharge = velocity * filled_area; // remove ?
+							double volume = discharge * sub_time_step_frac;
+							double delta_wat_depth = volume / area_junc;
+							water_juncs->at(i).set_water_depth(water_juncs->at(i).get_water_depth() - delta_wat_depth);
+							double depth_water_link_loc = links_water_neigh.at(j)->get_water_depth();
+							double filled_area_link_loc = 0.0;
+							double hydraulic_rad_link_loc = 0.0;
+							links_water_neigh.at(j)->comp_flow_area_and_hydr_rad(
+								depth_water_link_loc,
+								filled_area_link_loc,
+								hydraulic_rad_link_loc);
+							double vol_water_link_loc = filled_area_link_loc * length_link;
+							double free_volume_link_loc = full_volume_link - vol_water_link_loc;
+							double volume_excess_loc = volume - free_volume_link_loc;
+
+							// Save excess water to the neighbour junction.
+							if (volume_excess_loc > 0.0) {
+								volume = free_volume_link_loc;
+								double delta_wat_depth = volume_excess_loc / geom_junc_neigh->get_area();
+								water_juncs_neigh.at(j)->set_water_depth(water_juncs_neigh.at(j)->get_water_depth() + delta_wat_depth);
+							}
+
+							// Save remaining water into the link.
+							filled_area_link_loc = (vol_water_link_loc + volume) / length_link;
+							double depth_link_loc = links_water_neigh.at(j)->calculateWaterDepth(filled_area_link_loc, 0.5 * diam_link);
+							links_water_neigh.at(j)->set_water_depth(depth_link_loc);
+						}
+						// Flow direction from link to junction.
+						else {
+							double velocity = 1.0 / mann_n * sqrt(slope_link) * pow(hydraulic_rad_old_link, 2.0 / 3.0);
+							double discharge = velocity * filled_area_old_link; // remove ?
+							double volume = discharge * sub_time_step_frac;
+							double delta_wat_depth = volume / area_junc;
+							water_juncs->at(i).set_water_depth(water_juncs->at(i).get_water_depth() + delta_wat_depth);
+							double depth_water_link_loc = links_water_neigh.at(j)->get_water_depth();
+							double filled_area_link_loc = 0.0;
+							double hydraulic_rad_link_loc = 0.0;
+							links_water_neigh.at(j)->comp_flow_area_and_hydr_rad(
+								depth_water_link_loc,
+								filled_area_link_loc,
+								hydraulic_rad_link_loc);
+							double vol_water_link_loc = filled_area_link_loc * length_link - volume;
+							filled_area_link_loc = vol_water_link_loc / length_link;
+							double depth_link_loc = links_water_neigh.at(j)->calculateWaterDepth(filled_area_link_loc, 0.5 * diam_link);
+							links_water_neigh.at(j)->set_water_depth(depth_link_loc);
 						}
 
-						double filled_area = 0.0;
-						double hydraulic_rad = 0.0;
-						links.at(j)->comp_flow_area_and_hydr_rad(water_depth_lnk, filled_area, hydraulic_rad);
-						//double velocity = 1.0 / mann_n * sqrt(slope) * pow(hydraulic_rad, 2.0 / 3.0);
-						double velocity = 1.0 / mann_n * sqrt(slope_link) * pow(hydraulic_rad, 2.0 / 3.0);
-						//std::cout << velocity << "\n";
-						// Currently flow velocity in a pipe is restricted to a given maximum velocity.
-						// This used to ensure stable computation. try to fix this later.
-						//if (velocity > flow_vel_max) {
-						//	velocity = flow_vel_max;
-						//}
-						//else if (velocity < -flow_vel_max) {
-						//	velocity = -flow_vel_max;
-						//}
-
-						velocities.at(i).at(j) = velocity;
-						fluxes.at(i).at(j) = filled_area * velocity;
 					}
-				}
-				else if (head <= head_neigh) {
-					int id_lnk_end = 0;
-
-					if (ids_lnk_end.at(j) == 0) {
-						id_lnk_end = 1;
-					}
-
-					double elevation_link = link_vrts.at(id_lnk_end)->z;
-
-					if (head_neigh > elevation_link) {
-						double water_depth_lnk = head_neigh - elevation_link;
-
-						if (water_depth_lnk > depth_water_neigh) {
-							water_depth_lnk = depth_water_neigh;
+					// Pressurized flow. Compute flow directly between wells.
+					else {
+						if (head_old_junc > head_old_junc_neigh && head_old_junc > elev_bott_link) {
+							double slope = (head_old_junc - head_old_junc_neigh) / length_flat_link;
+							double hydraulic_rad = algorithms.get_pi() * diam_link / area_link;
+							double velocity = 1.0 / mann_n * sqrt(slope) * pow(hydraulic_rad, 2.0 / 3.0);
+							double discharge = velocity * area_link; // remove ?
+							double volume = discharge * sub_time_step_frac;
+							double delta_wat_depth = volume / area_junc_neigh;
+							water_juncs->at(i).set_water_depth(water_juncs->at(i).get_water_depth() - delta_wat_depth);
 						}
-
-						double filled_area = 0.0;
-						double hydraulic_rad = 0.0;
-						links.at(j)->comp_flow_area_and_hydr_rad(water_depth_lnk, filled_area, hydraulic_rad);
-						//double velocity = -1.0 / mann_n * sqrt(-slope) * pow(hydraulic_rad, 2.0 / 3.0);
-						double velocity = -1.0 / mann_n * sqrt(slope_link) * pow(hydraulic_rad, 2.0 / 3.0);
-						
-						// Currently flow velocity in a pipe is restricted to a given maximum velocity.
-						// This used to ensure stable computation. try to fix this later.
-						//if (velocity > flow_vel_max) {
-						//	velocity = flow_vel_max;
-						//}
-						//else if (velocity < -flow_vel_max) {
-						//	velocity = -flow_vel_max;
-						//}
-
-						velocities.at(i).at(j) = velocity;
-						fluxes.at(i).at(j) = filled_area * velocity;
+						else if (head_old_junc <= head_old_junc_neigh && head_old_junc_neigh > elev_bott_link_neigh) {
+							double slope = (head_old_junc_neigh - head_old_junc) / length_flat_link;
+							double hydraulic_rad = algorithms.get_pi() * diam_link / area_link;
+							double velocity = 1.0 / mann_n * sqrt(slope) * pow(hydraulic_rad, 2.0 / 3.0);
+							double discharge = velocity * area_link; // remove ?
+							double volume = discharge * sub_time_step_frac;
+							double delta_wat_depth = volume / area_junc;
+							water_juncs->at(i).set_water_depth(water_juncs->at(i).get_water_depth() + delta_wat_depth);
+						}
 					}
 				}
 			}
-		}
 
-		// Assess CFL condition and time step length.
-		//u* dt / dx <= 1 -> dt = dx / u
-		double time_step_sub_new = std::numeric_limits<double>::max();
-
-		for (int i = 0; i < velocities.size(); i++) {
-			for (int j = 0; j < velocities.at(i).size(); j++) {
-				if (fabs(velocities.at(i).at(j)) > 0.0 &&
-					/*0.075 **/ distances.at(i).at(j) / fabs(velocities.at(i).at(j)) < time_step_sub_new) {
-					time_step_sub_new = /*0.075 **/ distances.at(i).at(j) / fabs(velocities.at(i).at(j));
-				}
-			}
-		}
-
-		if (time_step_sub_new > sub_time_step ) {
-			time_step_sub_new = sub_time_step ;
-		}
-
-		if (time_step_sub_new > sub_time_step - time_loc && sub_time_step - time_loc > 0.0) {
-			time_step_sub_new = sub_time_step - time_loc;
-		}
-		
-		// Compute new water depths in the wells.
-		double volume_error = 0.0;
-		double error_thresh = 0.000001; // Get this constant from settings
-		int iterations_max = 1000; // Get this constant from settings
-		int iterations = 0;
-		double water_depth_min_thresh = -0.01; //-0.1;
-		double water_depth_min;
-
-		do {
-			// Compute change in water volumes.
-			double sys_water_volume_new = 0.0;
+			// Assess depth and mass balance errors and decrease time step if error(s) exceed threshold value.
+			double sys_water_volume = comp_sys_water_volume(grid2d, network);
+			volume_error = fabs(sys_water_volume - sys_water_volume_old);
 			water_depth_min = 0.0;
 
-			for (int i = 0; i < water_juncs->size(); i++) {
-				double vol_water_change = 0.0;
-
-				for (int j = 0; j < fluxes.at(i).size(); j++) {
-					vol_water_change -= fluxes.at(i).at(j) * time_step_sub_new;
-				}
-
-				JuncGeom* junc_geom = water_juncs->at(i).get_geom();
-				double depth_water_old = water_juncs->at(i).get_water_depth_old();
-				water_juncs->at(i).set_water_depth(depth_water_old + vol_water_change / junc_geom->get_area());
-				sys_water_volume_new += water_juncs->at(i).get_water_depth() * junc_geom->get_area();
-
+			for (size_t i = 0; i < water_juncs->size(); i++) {
 				if (water_juncs->at(i).get_water_depth() < water_depth_min) {
 					water_depth_min = water_juncs->at(i).get_water_depth();
 				}
 			}
 
-			// Decrease time step to decrease error.
-			volume_error = fabs(sys_water_volume_new - sys_water_volume);
+			for (size_t i = 0; i < water_links->size(); i++) {
+				if (water_links->at(i).get_water_depth() < water_depth_min) {
+					water_depth_min = water_links->at(i).get_water_depth();
+				}
+			}
 
 			if (volume_error > error_thresh || water_depth_min < water_depth_min_thresh) {
-				time_step_sub_new *= 0.5;
+				sub_time_step_frac *= 0.5;
+				revert_heads(grid2d, network);
 			}
 
 			iterations++;
 
 		} while ((volume_error > error_thresh || water_depth_min < water_depth_min_thresh) && iterations < iterations_max);
 
-		//std::cout << "water_depth_min: " << water_depth_min << "\n";
-		//std::cout << "iterations: " << iterations << "\n";
-		//std::cout << "volume_error: " << volume_error << "\n";
-		//std::cout << "time_step_sub_new: " << time_step_sub_new << "\n";
-
-		// Swap new water depths to old water depths.
-		for (int i = 0; i < water_juncs->size(); i++) {
+		// Swap new water depths to old in junctions.
+		for (size_t i = 0; i < water_juncs->size(); i++) {
 			water_juncs->at(i).swap();
 		}
-				
-		time_loc += time_step_sub_new;
-		//std::cout << "time_step_sub_new: " << time_step_sub_new << "\n";
 
-	} while (time_loc < time_step);
+		// Swap new water depths to old in links.
+		for (size_t i = 0; i < water_links->size(); i++) {
+			water_links->at(i).swap();
+		}
+
+		time_loc += sub_time_step_frac;
+
+	} while (time_loc < sub_time_step);
 }
 
 void ModelWaterNetExplicit::postprocess(Grid2d& grid2d, Network& network)

@@ -3,7 +3,9 @@
 LinkWater::LinkWater()
 {
     geom = 0;
-	mann_n = 0.013; // temporary for concrete pipe 0.013
+	mann_n = 0.0; // 0.013; // temporary for concrete pipe 0.013
+	water_depth = 0.0;
+	water_depth_old = 0.0;
 }
 
 void LinkWater::comp_flow_area_and_hydr_rad(
@@ -36,4 +38,26 @@ void LinkWater::comp_flow_area_and_hydr_rad(
 		flow_area = 0.0;
 		hydr_rad = 0.0;
 	}
+}
+
+double LinkWater::calculateWaterDepth(double area, double radius) {
+	const double tolerance = 1e-7; // Tolerance for convergence
+	double h_low = 0;
+	double h_high = 2 * radius;
+	double h_mid;
+
+	while (h_high - h_low > tolerance) {
+		h_mid = (h_high + h_low) / 2.0;
+		double theta = 2 * acos((radius - h_mid) / radius);
+		double A_calculated = radius * radius * (theta - sin(theta)) / 2;
+
+		if (A_calculated < area) {
+			h_low = h_mid;
+		}
+		else {
+			h_high = h_mid;
+		}
+	}
+
+	return (h_high + h_low) / 2.0;
 }

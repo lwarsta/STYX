@@ -540,8 +540,13 @@ void Network::init_water_network(
         // Set boundary condition.
         int bound_ind = geom_junc->getBoundCondInd();
         juncs_water.at(i).set_type(atoi(bound_cond_net_junc.at(bound_ind + 1).at(0 + 1).c_str()));
-        // Compute geometric properties.
+        // Compute geometric properties. IS THIS THE RIGHT PLACE TO DO THIS?
         geom_junc->comp_geom_properties();
+        // TEMPORARILY test fill certain junctions with water to test the system.
+        //if (i >= 37 && i <= 37) { // 34, 35, 36, 37, 38, 39
+        //    juncs_water.at(i).set_water_depth(3.0);
+        //    juncs_water.at(i).swap();
+        //}
     }
 
     for (size_t i = 0; i < links_water.size(); i++)
@@ -555,7 +560,8 @@ void Network::init_water_network(
         int initInd = geom_link->getInitCondInd();
         // Set boundary condition.
         int bound_ind = geom_link->getBoundCondInd();
-        // Compute geometric properties.
+        // Compute geometric properties. IS THIS THE RIGHT PLACE TO DO THESE?
         geom_link->comp_geom_properties();
+        geom_link->compCenterPoint();
     }
 }

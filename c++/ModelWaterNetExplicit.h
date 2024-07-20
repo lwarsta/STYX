@@ -19,6 +19,8 @@ private:
     double bisection(JuncWater& water, double left, double right);
     void iterate(Grid2d& grid2d, Network& network);
     void postprocess(Grid2d& grid2d, Network& network);
+    double comp_sys_water_volume(Grid2d& grid2d, Network& network);
+    void revert_heads(Grid2d& grid2d, Network& network);
     int iter_stop;
     double iter_cut_thresh;
     double implicity;
@@ -28,7 +30,6 @@ private:
     int iter_stop_bis;
     double thresh_left_bis; // should be zero
     double thresh_right_bis;
-    double flow_vel_max;
     int num_of_steps;
 };
 

@@ -26,3 +26,15 @@ int LinkJuncGeomBase::setGeomType(int geomTypeNew)
 	geomType = geomTypeNew;
 	return 0;
 }
+
+void  LinkJuncGeomBase::compCenterPoint()
+{
+	Algorithms algorithms;
+	std::vector<Vertex> points;
+
+	for (size_t i = 0; i < vertPointers.size(); i++) {
+		points.push_back( *vertPointers.at(i));
+	}
+
+	centrePoint = algorithms.compute_centre_point(points);
+}

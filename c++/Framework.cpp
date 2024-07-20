@@ -475,6 +475,21 @@ int Framework::run()
         header.push_back("decay mass out cum. [g] (" + solName + ")");
 	}
 
+    std::vector<JuncWater>* water_juncs = network.get_water_juncs();
+
+    for (size_t i = 0; i < water_juncs->size(); i++)
+    {
+        std::string id_junc = std::to_string(water_juncs->at(i).getId());
+        header.push_back("j" + id_junc + " [m3]");
+    }
+
+    std::vector<LinkWater>* water_links = network.get_water_links();
+
+    for (size_t i = 0; i < water_links->size(); i++) {
+        std::string id_junc = std::to_string(water_links->at(i).getId());
+        header.push_back("l" + id_junc + " [m3]");
+    }
+
     results.push_back(header);
 
     // Run the simulation.
@@ -862,12 +877,26 @@ int Framework::run()
         {
             // Compute water volume in the network.
             double wat_vol_net = 0.0;
-            std::vector<JuncWater>* water_juncs = network.get_water_juncs();
+            //std::vector<JuncWater>* water_juncs = network.get_water_juncs();
 
             for (size_t i = 0; i < water_juncs->size(); i++)
             {
                 JuncGeom* geom_junc = water_juncs->at(i).get_geom();
                 wat_vol_net += water_juncs->at(i).get_water_depth() * geom_junc->get_area();
+            }
+
+            //std::vector<LinkWater>* water_links = network.get_water_links();
+
+            for (size_t i = 0; i < water_links->size(); i++) {
+                double water_depth_link = water_links->at(i).get_water_depth();
+                double filled_area_link = 0.0;
+                double hydraulic_rad_link = 0.0;
+                water_links->at(i).comp_flow_area_and_hydr_rad(
+                    water_depth_link,
+                    filled_area_link,
+                    hydraulic_rad_link);
+                LinkGeom* geom_link = water_links->at(i).get_geom();
+                wat_vol_net += geom_link->get_length() * filled_area_link;
             }
 
             // Compute water water volume lost via outfalls.
@@ -972,12 +1001,6 @@ int Framework::run()
             resultRow.push_back(std::to_string(drainVolCum5min));
             resultRow.push_back(std::to_string(sinkVolCum));
 
-            // TEMPORARILY ADD WATER DEPTHS INTO THE RESULTS.
-            for (size_t i = 0; i < water_juncs->size(); i++)
-            {
-                resultRow.push_back(std::to_string(water_juncs->at(i).get_water_depth()));
-            }
-
             for (size_t i = 0; i < num_of_species; i++)
             {
                 resultRow.push_back(std::to_string(soluteMass2d.at(i)));
@@ -987,6 +1010,28 @@ int Framework::run()
                 resultRow.push_back(std::to_string(drainMassCum5Min.at(i)));
                 resultRow.push_back(std::to_string(decayMassInCum.at(i)));
                 resultRow.push_back(std::to_string(decayMassOutCum.at(i)));
+            }
+
+            // TEMPORARILY ADD WATER DEPTHS IN JUNCTIONS AND LINKS INTO THE RESULTS.
+            for (size_t i = 0; i < water_juncs->size(); i++)
+            {
+                JuncGeom* geom_junc = water_juncs->at(i).get_geom();
+                double wat_vol_junc = water_juncs->at(i).get_water_depth() * geom_junc->get_area();
+                resultRow.push_back(std::to_string(wat_vol_junc));
+            }
+
+            for (size_t i = 0; i < water_links->size(); i++)
+            {
+                double water_depth_link = water_links->at(i).get_water_depth();
+                double filled_area_link = 0.0;
+                double hydraulic_rad_link = 0.0;
+                water_links->at(i).comp_flow_area_and_hydr_rad(
+                    water_depth_link,
+                    filled_area_link,
+                    hydraulic_rad_link);
+                LinkGeom* geom_link = water_links->at(i).get_geom();
+                double wat_vol_link = geom_link->get_length() * filled_area_link;
+                resultRow.push_back(std::to_string(wat_vol_link));
             }
 
             results.push_back(resultRow);

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include "Algorithms.h"
 #include "CellBase.h"
 #include "Vertex.h"
 
@@ -33,6 +34,7 @@ public:
 	int setGeomType(int geomTypeNew);
 	std::vector<int> getVertIndices() { return vertIndices; }
 	std::vector<Vertex*> getVertPointers() { return vertPointers; }
+	void compCenterPoint();
 	Vertex getCentrePoint() { return centrePoint; }
 };
 

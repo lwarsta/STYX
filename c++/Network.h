@@ -43,6 +43,7 @@ public:
         std::vector<std::vector<std::string>>& init_cond_net_link);
     std::vector<JuncGeom>* get_geom_juncs() { return &juncs_geom; }
     std::vector<JuncWater>* get_water_juncs(){ return &juncs_water; }
+    std::vector<LinkWater>* get_water_links() { return &links_water; }
 };
 
 #endif
