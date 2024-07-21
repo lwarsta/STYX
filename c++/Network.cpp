@@ -543,7 +543,7 @@ void Network::init_water_network(
         // Compute geometric properties. IS THIS THE RIGHT PLACE TO DO THIS?
         geom_junc->comp_geom_properties();
         // TEMPORARILY test fill certain junctions with water to test the system.
-        //if (i >= 37 && i <= 37) { // 34, 35, 36, 37, 38, 39
+        //if (i >= 0 && i <= 41) { // 34, 35, 36, 37, 38, 39
         //    juncs_water.at(i).set_water_depth(3.0);
         //    juncs_water.at(i).swap();
         //}
@@ -563,5 +563,8 @@ void Network::init_water_network(
         // Compute geometric properties. IS THIS THE RIGHT PLACE TO DO THESE?
         geom_link->comp_geom_properties();
         geom_link->compCenterPoint();
+        // TEMPORARILY test fill certain link with water to test the system.
+        //links_water.at(i).set_water_depth(geom_link->get_diameter());
+        //links_water.at(i).swap();
     }
 }

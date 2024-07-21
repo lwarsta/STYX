@@ -314,7 +314,7 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 					}
 					// Pressurized flow. Compute flow directly between wells.
 					else {
-						if (head_old_junc > head_old_junc_neigh && head_old_junc > elev_bott_link) {
+						if (head_old_junc > head_old_junc_neigh && head_old_junc > elev_bott_link + diam_link) {
 							double slope = (head_old_junc - head_old_junc_neigh) / length_flat_link;
 							double hydraulic_rad = algorithms.get_pi() * diam_link / area_link;
 							double velocity = 1.0 / mann_n * sqrt(slope) * pow(hydraulic_rad, 2.0 / 3.0);
@@ -322,8 +322,9 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 							double volume = discharge * sub_time_step_frac;
 							double delta_wat_depth = volume / area_junc_neigh;
 							water_juncs->at(i).set_water_depth(water_juncs->at(i).get_water_depth() - delta_wat_depth);
+							//std::cout << "outgoing flow in " << water_juncs->at(i).getId() << "\n";
 						}
-						else if (head_old_junc <= head_old_junc_neigh && head_old_junc_neigh > elev_bott_link_neigh) {
+						else if (head_old_junc <= head_old_junc_neigh && head_old_junc_neigh > elev_bott_link_neigh + diam_link) {
 							double slope = (head_old_junc_neigh - head_old_junc) / length_flat_link;
 							double hydraulic_rad = algorithms.get_pi() * diam_link / area_link;
 							double velocity = 1.0 / mann_n * sqrt(slope) * pow(hydraulic_rad, 2.0 / 3.0);
@@ -331,6 +332,7 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 							double volume = discharge * sub_time_step_frac;
 							double delta_wat_depth = volume / area_junc;
 							water_juncs->at(i).set_water_depth(water_juncs->at(i).get_water_depth() + delta_wat_depth);
+							//std::cout << "incoming flow in " << water_juncs->at(i).getId() << "\n";
 						}
 					}
 				}
@@ -396,7 +398,7 @@ void ModelWaterNetExplicit::postprocess(Grid2d& grid2d, Network& network)
 			water_juncs->at(i).set_outfall_volume(outfall_vol + junc_water_depth * junc_geom->get_area());
 			water_juncs->at(i).swap();
 		}
-		/*
+		
 		// When water level exceeds junction depth store water on surface cell.
 		// Some sort of mass balance problem here. Try to sort this out.
 		int grid_conn = junc_geom->getGridConnection();
@@ -423,8 +425,10 @@ void ModelWaterNetExplicit::postprocess(Grid2d& grid2d, Network& network)
 				
 				double cell_area = geom_cell->getArea();
 				double cell_water_vol = cell_water_depth * cell_area;
-				double junc_water_volume = (junc_water_depth - junc_depth) * junc_area;
-				double cell_water_vol_new = cell_water_vol + junc_water_volume;
+				//double excess_water = junc_water_depth * junc_area;
+				double excess_water = (junc_water_depth - junc_depth) * junc_area;
+				double cell_water_vol_new = cell_water_vol + excess_water;
+				//junc_water_depth = 0.0;
 				junc_water_depth = junc_depth;
 				water_juncs->at(i).set_water_depth(junc_water_depth); // Comment out to cut exchange of water between surface
 				water_juncs->at(i).swap();
@@ -432,6 +436,6 @@ void ModelWaterNetExplicit::postprocess(Grid2d& grid2d, Network& network)
 				water_cells->at(grid_conn).swap();
 			}
 		}
-		*/
+		
 	}
 }
