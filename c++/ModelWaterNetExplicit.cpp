@@ -193,19 +193,21 @@ void ModelWaterNetExplicit::iterate(Grid2d& grid2d, Network& network)
 
 		do { // error iteration loop
 			// Compute water flow between junctions.
-			for (size_t i = 0; i < water_juncs->size(); i++)
+			//#pragma omp parallel for
+			for (int i = 0; i < (int)water_juncs->size(); i++)
 			{
 				// Get current junction properties.
 				JuncGeom* geom_junc = water_juncs->at(i).get_geom();
+
 				// COMPUTE HEAD WITHIN THE CLASS/OBJECT.
 				std::vector<Vertex*> vrts_junc = geom_junc->getVertPointers();
 				double elev_bott_junc = vrts_junc.at(1)->z;
 				double depth_water_old_junc = water_juncs->at(i).get_water_depth_old();
 				double head_old_junc = elev_bott_junc + depth_water_old_junc;
 				double area_junc = geom_junc->get_area();
-				std::vector<int> ids_lnk_end = water_juncs->at(i).get_ids_lnk_end();
+				std::vector<int> ids_lnk_end = water_juncs->at(i).get_ids_lnk_end(); // this line seems to crash the openmp run
 				std::vector<LinkWater*> links_water_neigh = water_juncs->at(i).get_links();
-
+				
 				// Get neighbour junctions and links.
 				std::vector<JuncWater*> water_juncs_neigh = water_juncs->at(i).get_juncs_neigh();
 
