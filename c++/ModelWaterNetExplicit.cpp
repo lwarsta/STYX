@@ -84,6 +84,12 @@ void ModelWaterNetExplicit::comp_flow_from_cell_to_junc(JuncWater &junc_water, C
 		// Update water depths in the junction and overland cell.
 		if (inflow_vol > 0.0 && cell_area > 0.0 && junc_area > 0.0) {
 			cell_water_depth_tot -= inflow_vol / cell_area;
+
+			// Fix a bug where the water depth goes just below zero.
+			if (cell_water_depth_tot < 0.0) {
+				cell_water_depth_tot = 0.0;
+			}
+
 			junc_water_depth += inflow_vol / junc_area;
 			junc_water.set_water_depth(junc_water_depth);  // Comment out to cut exchange of water between surface
 			junc_water.swap();
@@ -404,7 +410,7 @@ void ModelWaterNetExplicit::postprocess(Grid2d& grid2d, Network& network)
 		// When water level exceeds junction depth store water on surface cell.
 		// Some sort of mass balance problem here. Try to sort this out.
 		int grid_conn = junc_geom->getGridConnection();
-
+		
 		if (junc_type == 0 && junc_geom != 0 && grid_conn >= 0 && grid_conn < water_cells->size()) {
 			double junc_water_depth = water_juncs->at(i).get_water_depth();
 			double junc_area = junc_geom->get_area();
@@ -415,22 +421,10 @@ void ModelWaterNetExplicit::postprocess(Grid2d& grid2d, Network& network)
 			// Update water depths in the junction and overland cell.
 			if (geom_cell != 0 && junc_water_depth > junc_depth)
 			{
-				
-				//double cell_area = geom_cell->getArea();
-				//double junc_water_volume = (junc_water_depth - junc_depth) * junc_area;
-				//cell_water_depth += junc_water_volume / cell_area;
-				//junc_water_depth = junc_depth;
-				//water_juncs->at(i).set_water_depth(junc_water_depth); // Comment out to cut exchange of water between surface
-				//water_juncs->at(i).swap();
-				//water_cells->at(grid_conn).setWaterDepth(cell_water_depth); // Comment out to cut exchange of water between surface
-				//water_cells->at(grid_conn).swap();
-				
 				double cell_area = geom_cell->getArea();
 				double cell_water_vol = cell_water_depth * cell_area;
-				//double excess_water = junc_water_depth * junc_area;
 				double excess_water = (junc_water_depth - junc_depth) * junc_area;
 				double cell_water_vol_new = cell_water_vol + excess_water;
-				//junc_water_depth = 0.0;
 				junc_water_depth = junc_depth;
 				water_juncs->at(i).set_water_depth(junc_water_depth); // Comment out to cut exchange of water between surface
 				water_juncs->at(i).swap();

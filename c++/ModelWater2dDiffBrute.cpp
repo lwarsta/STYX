@@ -27,11 +27,12 @@ void ModelWater2dDiffBrute::preprocess(Grid2d &grid2d, Grid3d &grid3d)
 	//#pragma omp parallel for
 	for (size_t i = 0; i < waterCells2d->size(); i++)
 	{
-        waterCells2d->at(i).swap();
         if (waterCells2d->at(i).getWaterDepth() < 0.0)
         {
             waterCells2d->at(i).setWaterDepth(0.0);
         }
+
+		waterCells2d->at(i).swap();
 	}
 }
 

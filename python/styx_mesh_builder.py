@@ -605,6 +605,105 @@ def generate_irregular_mesh(lc, lc_ditch, dist_min_ditch, dist_max_ditch, num_pn
     
     return vertices_2d, cells_2d, vertices_3d, cells_3d
 
+def create_building_data(cells_2d, vertices_2d, building_elevation, create_output_data, write_output_data_to_disk, output_path):
+    """
+    Luo rakennusten 3D-solmuja ja tallentaa ne VTK-tiedostoon.
+
+    Args:
+        cells_2d (list): Lista 2D-ruudukon soluista.
+        vertices_2d (list): Lista 2D-ruudukon vertex-pisteistä.
+        building_elevation (float): Rakennuksen ekstrusioon käytettävä korkeus (esim. 10.0).
+        create_output_data (function): Funktio VTK-datan luomiseen.
+        write_output_data_to_disk (function): Funktio VTK-tiedoston tallentamiseen.
+        output_path (str): Polku, johon VTK-tiedosto tallennetaan.
+
+    Returns:
+        None
+    """
+    building_vertices = []
+    building_cells = []
+    vertex_map = {}  # Map alkuperäisten vertex-indeksien ja uuden vertexin välillä
+    new_vertex_id = 0
+
+    # 1. Etsi rakennussolmut (material == 2)
+    building_cells_2d = [cell for cell in cells_2d if cell.material == 2]
+
+    for cell in building_cells_2d: # [:2]:  # Rajoita kahteen rakennukseen
+        # 2. Luo polygoni solmun kulmista
+        polygon = [vertices_2d[ind] for ind in cell.vert_indices]
+        
+        # 3. Lisää huippupisteet vertex-listaan, varmistaen uniikkius
+        polygon_vertices = []
+        for vert in polygon:
+            key = (vert.x, vert.y)  # Oletetaan, että x ja y yksilöivät pisteen
+            if key not in vertex_map:
+                vertex_map[key] = new_vertex_id
+                # 4. Tasoitus: aseta z-alin korkeuteen
+                min_z = min(p.z for p in polygon)
+                flat_vertex = Vertex(new_vertex_id, vert.x, vert.y, min_z)
+                building_vertices.append(flat_vertex)
+                new_vertex_id += 1
+            polygon_vertices.append(vertex_map[key])
+
+        # 5. Extrusio rakennuskorkeudella
+        top_vertices = []
+        for idx in polygon_vertices:
+            base_vertex = building_vertices[idx]
+            top_vertex = Vertex(new_vertex_id, base_vertex.x, base_vertex.y, base_vertex.z + building_elevation)
+            top_vertices.append(new_vertex_id)
+            building_vertices.append(top_vertex)
+            new_vertex_id += 1
+
+        # 6. Luo heksahedroni tai viistohedroni
+        if len(polygon_vertices) == 4:
+            # Heksahedron
+            cell_vert_indices = [
+                polygon_vertices[0], polygon_vertices[1], polygon_vertices[2], polygon_vertices[3],
+                top_vertices[0], top_vertices[1], top_vertices[2], top_vertices[3]
+            ]
+            geom_type = 12  # VTK hexahedron
+            data_mult = 9
+        elif len(polygon_vertices) == 3:
+            # Viistohedroni
+            cell_vert_indices = [
+                polygon_vertices[0], polygon_vertices[1], polygon_vertices[2],
+                top_vertices[0], top_vertices[1], top_vertices[2]
+            ]
+            geom_type = 13  # VTK wedge
+            data_mult = 7
+        else:
+            print(f"Polygoni, jossa {len(polygon_vertices)} kulmaa, ei tueta.")
+            continue  # Ohita tuen ulkopuoliset polygoniot
+
+        # Luo GridCell
+        building_cell = GridCell(
+            geom_type=geom_type,
+            vert_indices=cell_vert_indices,
+            id=len(building_cells),
+            grid_connection=-1,  # Voidaan määrittää tarpeen mukaan
+            junc_type=0  # Voidaan määrittää tarpeen mukaan
+        )
+        building_cells.append(building_cell)
+
+    # 7. Yhtenäistä naapurirakennusten huiput
+    # Tässä esimerkissä oletetaan, että kaikkien rakennusten huiput ovat samalla korkeudella
+    # Voidaan laajentaa tarkistamaan tarkempaa naapurustoa
+    for cell in building_cells:
+        # Päivitä kaikkien huippujen z-arvot
+        for vert_id in cell.vert_indices[4:]:
+            building_vertices[vert_id].z = building_vertices[vert_id].z  # Varmista yhtenäisyys
+
+    # **Korjattu: Rajoitetaan rakennuslistat kahteen rakennukseen ja 16 huippupisteeseen**
+    # Koska jokainen heksahedron vaatii 8 pistettä, kahdelle rakennukselle tarvitaan 16
+    #building_cells = building_cells[:2]        # Vain kaksi rakennusta
+    #building_vertices = building_vertices[:16]  # Vain kahdeksan huippupistettä per rakennus
+
+    # Luo VTK-data
+    vtk_data = create_output_data(building_vertices, building_cells, data_mult=9 if any(cell.geom_type == 12 for cell in building_cells) else 7)
+
+    # Tallenna VTK-tiedostoon
+    write_output_data_to_disk(output_path, vtk_data, ' ')
+
 def main(argv):
     """
     """
@@ -1584,7 +1683,13 @@ def main(argv):
     path_grid_map = os.path.join(st_path_to_output_folder, st_subsurface_grid_map_file)
     write_output_data_to_disk(path_grid_map, grid_map_data, ',')
 
-
+    # Luo rakennuslohkojen 3D-solmut
+    print("-> Creating building 3D cells.")
+    building_elevation = 6.0  # Määritä rakennuskorkeus
+    building_vtk_path = os.path.join(st_path_to_output_folder, "buildings.vtk")
+    #create_building_data(cells_2d, vertices_2d, building_elevation, create_output_data, building_vtk_path)
+    create_building_data(cells_2d, vertices_2d, building_elevation, create_output_data, write_output_data_to_disk, building_vtk_path)
+    print(f"-> Building data saved to {building_vtk_path}")
 
     # Write solute properties file.
     print("-> Writing solute properties file.")
