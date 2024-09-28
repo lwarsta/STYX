@@ -592,19 +592,22 @@ int Framework::run()
                     Vertex cell_top_vert = faceCentrePoints.at(0);
                     CellWater3d * cell_water_3d = & cells_water_3d->at(i);
                     double depth_sum = 0.0;
+                    double cell_root_length;
                 
-                    while (cell_water_3d != 0) {
+                    do {
                         geom3d = cell_water_3d->getGeom();
                         size_t num_of_neigh = geom3d->getNumOfNeigh();
                         faceCentrePoints = geom3d->getFaceCentrePoints();
                         Vertex cell_bott_vert = faceCentrePoints.at(num_of_neigh-1);
-                        double cell_root_length = 0.0;
-                    
-                        if (depth_sum + cell_top_vert.z - cell_bott_vert.z > root_depth) {
+                        
+                        if (depth_sum + cell_top_vert.z - cell_bott_vert.z <= root_depth) {
+                            cell_root_length = cell_top_vert.z - cell_bott_vert.z;
+                        }
+                        else if (depth_sum < root_depth && depth_sum + cell_top_vert.z - cell_bott_vert.z > root_depth) {
                             cell_root_length = root_depth - depth_sum;
                         }
                         else {
-                            cell_root_length = cell_top_vert.z - cell_bott_vert.z;
+                            cell_root_length = 0.0;
                         }
 
                         double press_head_eff = cell_water_3d->getPresHead();
@@ -614,28 +617,23 @@ int Framework::run()
                         double moist_factor = 0.0;
 
                         // Fix out of bounds pressure head.
-                        if (press_head_eff > 0.0)
-                        {
+                        if (press_head_eff > 0.0) {
                             press_head_eff = 0.0;
                         }
-                        if (press_head_eff < press_head_wilt)
-                        {
+                        if (press_head_eff < press_head_wilt) {
                             press_head_eff = press_head_wilt;
                         }
 
                         // Soil wetness is in optimal range.
-                        if (press_head_eff >= press_head_min && press_head_eff <= press_head_max)
-                        {
+                        if (press_head_eff >= press_head_min && press_head_eff <= press_head_max) {
                             moist_factor = 1.0;
                         }
                         // Soil is too wet.
-                        else if (press_head_eff > press_head_max)
-                        {
+                        else if (press_head_eff > press_head_max) {
                             moist_factor = 1.0 - (press_head_eff - press_head_max) / (0.0 - press_head_max);
                         }
                         // Soil is too dry.
-                        else
-                        {
+                        else {
                             moist_factor = 1.0 - (press_head_eff - press_head_min) / (press_head_wilt - press_head_min);
                         }
 
@@ -650,7 +648,7 @@ int Framework::run()
                         depth_sum += cell_top_vert.z - cell_bott_vert.z;
                         cell_top_vert = cell_bott_vert;
                         cell_water_3d = cell_water_3d->getNeigh(num_of_neigh - 1);
-                    }
+                    } while (cell_water_3d != 0 && cell_root_length > 0.0);
                 }
             }
         }
