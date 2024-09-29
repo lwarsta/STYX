@@ -6,7 +6,7 @@
 #include <map>
 #include "FileIO.h"
 #include "Settings.h"
-//#include "PhreeqcRM.h"
+#include "PhreeqcRM.h"
 #include "Grid2d.h"
 #include "Grid3d.h"
 
@@ -15,7 +15,7 @@ class PhreeqcWrapper
 private:
     int countWordOccurrences(std::string input, std::string search_word);
     FileIO fileIO;
-    //PhreeqcRM* phreeqc_rm;
+    PhreeqcRM* phreeqc_rm;
     int num_of_threads;
     std::vector<double> phreeqcVol;
     std::vector<double> phreeqcPor;

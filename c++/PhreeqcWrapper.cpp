@@ -2,7 +2,7 @@
 
 PhreeqcWrapper::PhreeqcWrapper()
 {
-    //phreeqc_rm = 0;
+    phreeqc_rm = 0;
     num_of_threads = 1;
     num_of_cells_3d = 0;
     num_of_species = 0;
@@ -11,7 +11,7 @@ PhreeqcWrapper::PhreeqcWrapper()
 
 PhreeqcWrapper::~PhreeqcWrapper()
 {
-    //delete phreeqc_rm;
+    delete phreeqc_rm;
 }
 
 int PhreeqcWrapper::countWordOccurrences(std::string input, std::string search_word)
@@ -49,7 +49,6 @@ void PhreeqcWrapper::initialize(
     Grid2d& grid2d, 
     Grid3d& grid3d)
 {
-    /*
     try
     {
         // Initialise PHREEQCRM.
@@ -98,7 +97,7 @@ void PhreeqcWrapper::initialize(
         for (int i = 0; i < waterCells3d->size(); i++)
         {
             CellGeom3d* cellGeom = waterCells3d->at(i).getGeom();
-            phreeqcVol.at(i) = cellGeom->getVolume() * 1000.0; // m3 -> l TEMPORARILY COMMENTED OUT
+            phreeqcVol.at(i) = cellGeom->getVolume() * 1000.0; // m3 -> l
             phreeqcPor.at(i) = waterCells3d->at(i).getWatContSat();
             // Saturation varies bewteen 0 ... 1.
             double saturation = 0.0;
@@ -181,7 +180,6 @@ void PhreeqcWrapper::initialize(
             CellGeom3d* geomCell = waterCells3d->at(i).getGeom();
             int boundInd = geomCell->getBoundCondInd();
             // Set boundary condition indices.
-            // Solution below was zero!
             ic1.at(0 * num_of_cells_3d + i) = atoi(boundCond3d.at(boundInd + 1).at(2 + 1).c_str()); // Solution
             ic1.at(1 * num_of_cells_3d + i) = atoi(boundCond3d.at(boundInd + 1).at(3 + 1).c_str()); // Equilibrium phases
             ic1.at(2 * num_of_cells_3d + i) = atoi(boundCond3d.at(boundInd + 1).at(4 + 1).c_str()); // Exchange
@@ -237,7 +235,7 @@ void PhreeqcWrapper::initialize(
         std::cerr << e_string << std::endl;
         //return IRM_FAIL;
     }
-    */
+
 }
 
 double PhreeqcWrapper::get_bound_cond(size_t index)
@@ -259,7 +257,7 @@ double PhreeqcWrapper::get_bound_cond(size_t index)
 
 int PhreeqcWrapper::run(Settings& settings, Grid2d& grid2d, Grid3d& grid3d)
 {
-    /*
+
     try
     {
         std::vector<double> concIn(num_of_species * num_of_cells_3d, 0.0); // cellsPerSolute3d
@@ -439,6 +437,6 @@ int PhreeqcWrapper::run(Settings& settings, Grid2d& grid2d, Grid3d& grid3d)
         
         return 3; // IRM_FAIL;
     }
-    */
+ 
     return 0;
 }
