@@ -1,5 +1,17 @@
-﻿################################################################################
-# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
-################################################################################
+# Object files
+*.o
 
-/.vs
+# Executables
+styx_model
+
+# Concatenated code
+full_source.txt
+
+# Input data
+/data
+
+# Build directories or temporary files (if needed)
+*.out
+*.log
+*.tmp
+

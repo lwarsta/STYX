@@ -1,0 +1,108 @@
+{
+  "General": {
+    "RunTests": false,
+    "ParallelThreads": 4
+  },
+  "TimeControl": {
+    "StartDateTime": "2006-06-22T23:44:00",
+    "EndDateTime": "2006-06-23T06:00:00",
+    "TimeStep": 60.0,
+    "ResultsSaveInterval": 480,
+    "WeatherDataInterval": 120.0
+  },
+  "WaterFlow": {
+	"NetworkFlowBasic": {
+      "Enabled": true,
+	  "Description": "Explicit pressure driven network flow solution.",
+      "MaxIterationsNetwork": 100,
+      "IterationCutThresholdNetwork": 1e-07,
+      "BisectionIterationThresholdNetwork": 1e-08,
+      "BisectionMaxIterationsNetwork": 100,
+      "BisectionLeftDepthNetwork": 0.0,
+      "BisectionRightDepthNetwork": 10.0
+	},
+	"SurfaceFlowBasic": {
+      "Enabled": true,
+	  "Description": "Diffusion wave based implicit iterative solution.",
+      "MaxIterationsSurface": 100,
+      "IterationCutThresholdSurface": 1e-11,
+      "BisectionIterationThresholdSurface": 1e-11,
+      "BisectionMaxIterationsSurface": 100,
+      "BisectionLeftDepthSurface": 0.0,
+      "BisectionRightDepthSurface": 10.0
+	},
+	"SubsurfaceFlowBasic": {
+      "Enabled": true,
+	  "Description": "Brute force implicit iterative solution.",
+      "MaxIterationsSubsurface": 200,
+      "IterationCutThresholdSubsurface": 1e-08
+	}
+  },
+  "HeatTransfer": {
+    "SubsurfaceTransferBasic": {
+      "Enabled": true,
+	  "Description": "Implicit iterative subsurface heat transfer model with frost description.",
+      "MaxIterations": 100,
+      "IterationCutThreshold": 0.0001,
+      "BisectionIterationThreshold": 0.0001,
+      "BisectionMaxIterations": 100,
+      "BisectionLeftTempLimit": -50.0,
+      "BisectionRightTempLimit": 50.0
+	},
+	"GeneralProperties": {
+      "LatentHeatOfFusion": 333.7,
+      "FreezingTemperature": 0.5,
+      "FreezingCurveMultiplier": 1.5,
+      "AirDensity": 1.25,
+      "IceDensity": 917.0,
+      "WaterDensity": 1000.0,
+      "AirHeatCapacity": 1.005,
+      "IceHeatCapacity": 2.09,
+      "WaterHeatCapacity": 4.18,
+      "AirHeatConductivity": 2.5e-05,
+      "IceHeatConductivity": 0.0022,
+      "WaterHeatConductivity": 0.00057,
+      "HeatConductivityMultiplierAir": 1.0,
+      "HeatConductivityMultiplierIce": 1.0,
+      "HeatConductivityMultiplierWater": 1.0,
+      "SoilInitialTemperature": 5.0
+	}
+  },
+  "SoluteTransport": {
+    "Solver": 0,
+    "MaxIterations": 1000,
+    "IterationCutThreshold": 1e-08,
+    "SolutionImplicit": 1.0,
+    "MolecularDiffusionRate": 3.6e-06
+  },
+  "Files": {
+    "NetworkLinkVTK": "data/links.vtk",
+    "NetworkJunctionVTK": "data/junctions.vtk",
+    "SurfaceGridVTK": "data/surface_grid.vtk",
+    "SubsurfaceGridVTK": "data/subsurface_grid.vtk",
+    "SubsurfaceGridMap": "data/subsurface_grid_map.csv",
+    "MaterialsNetJunc": "data/materials_net_junc.csv",
+    "MaterialsNetLink": "data/materials_net_link.csv",
+    "Materials2D": "data/materials_2d.csv",
+    "Materials3D": "data/materials_3d.csv",
+    "InitialConditionsNetJunc": "data/initial_conditions_net_junc.csv",
+    "InitialConditionsNetLink": "data/initial_conditions_net_link.csv",
+    "InitialConditions2D": "data/initial_conditions_2d.csv",
+    "InitialConditions3D": "data/initial_conditions_3d.csv",
+    "BoundaryConditionsNetJunc": "data/boundary_conditions_net_junc.csv",
+    "BoundaryConditionsNetLink": "data/boundary_conditions_net_link.csv",
+    "BoundaryConditions2D": "data/boundary_conditions_2d.csv",
+    "BoundaryConditions3D": "data/boundary_conditions_3d.csv",
+    "AtmosphericForcing": "data/atmospheric_forcing_calibration_20060622.csv",
+    "SoluteProperties": "data/solute_properties.csv",
+    "PhreeqcInput": "data/phreeqcrm_input.dat",
+    "PhreeqcDatabase": "data/phreeqc.dat",
+    "SpeciesNameMap": "data/species_name_in_database.csv",
+    "MolecularWeights": "data/molecular_weights.csv",
+    "ResultsCSV": "data/results/results.csv",
+    "NetworkLinkVTKOutputFolder": "",
+    "NetworkJunctionVTKOutputFolder": "",
+    "SurfaceVTKOutputFolder": "",
+    "SubsurfaceVTKOutputFolder": ""
+  }
+}
